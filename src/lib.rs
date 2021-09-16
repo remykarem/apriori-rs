@@ -1,3 +1,4 @@
+#![warn(non_snake_case)]
 use itertools::Itertools;
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
@@ -16,7 +17,7 @@ macro_rules! str_vec2 {
     ($($x:expr),*) => {
         {
             let mut vec: Vec<&String> = vec![];
-            $(vec.push(&$x.into());)*
+            $(vec.push($x);)*
             vec
         }
     };
@@ -30,21 +31,20 @@ fn main() {
     }
 }
 
-type Itemset = Vec<String>;
-
 /// Apriori algorithm for association rules.
+///
+/// Args:
+///     transactions: A list of list of items.
+///     min_support: The minimum support.
+///     min_confidence: The minimum confidence.
+///     max_len: Maximum no. of items in an association rule.
+///
+/// Returns:
+///     A list of association rules.
 #[pyfunction]
-#[pyo3(text_signature = "(/, *, transactions, min_support, min_conf)")]
-fn apriori(transactions: Vec<Vec<String>>, min_support: f32, min_conf: f32, max_len: usize) {
-    // let transactions: Vec<Vec<String>> = vec![
-    //     str_vec!["bread", "yogurt"],
-    //     str_vec!["bread", "milk", "cereal", "eggs"],
-    //     str_vec!["yogurt", "milk", "cereal", "cheese"],
-    //     str_vec!["bread", "yogurt", "milk", "cereal"],
-    //     str_vec!["bread", "yogurt", "milk", "cheese"],
-    // ];
+#[pyo3(text_signature = "(/, *, transactions, min_support, min_confidence, max_len)")]
+fn apriori(transactions: Vec<Vec<String>>, min_support: f32, min_confidence: f32, max_len: usize) {
     let N = transactions.len();
-    // let min_conf = 0.5;
 
     let itemset_counts = create_itemset_counts_multipass(
         &transactions,
@@ -80,11 +80,8 @@ fn apriori(transactions: Vec<Vec<String>>, min_support: f32, min_conf: f32, max_
 
                     let den = (*itemset_counts.get(&antecedent).unwrap()) as f32;
                     let num = *count as f32;
-                    if num > min_conf * den {
-                        println!(
-                            "Rule: {:?} => {:?} COnfidence = {:?}",
-                            antecedent, y, min_conf
-                        );
+                    if num > min_confidence * den {
+                        println!("• {:?} -> {:?}", antecedent, y,);
                     }
 
                     antecedents.insert(antecedent);
@@ -98,7 +95,7 @@ fn get_candidates<'a>(
     min_support_count: i32,
     N: i32,
 ) -> Vec<(&'a Vec<&'a String>, &'a i32)> {
-    println!("Getting candidates");
+    println!("Getting candidates\n");
     itemset_counts
         .iter()
         .filter_map(|(itemset, count)| {
@@ -116,7 +113,7 @@ fn create_itemset_counts(
     transactions: &[Vec<String>],
     max_size: usize,
 ) -> HashMap<Vec<&String>, i32> {
-    println!("Creating itemset counts");
+    println!("Creating itemset counts\n");
     let mut itemset_counts: HashMap<Vec<&String>, i32> = HashMap::new();
 
     transactions.iter().for_each(|transaction| {
@@ -202,9 +199,19 @@ mod tests {
         let itemset_counts = create_itemset_counts(&transactions, 2);
 
         assert_eq!(itemset_counts.len(), 3);
-        assert!(itemset_counts.contains_key(str_vec2!["bread"]));
-        assert!(itemset_counts.contains_key(str_vec2!["milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["bread", "milk"]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"milk".to_string()]));
+    }
+    #[test]
+    fn test_create_itemset_counts_1_transaction_multipass() {
+        let transactions = vec![str_vec!["bread", "milk"]];
+        let itemset_counts = create_itemset_counts_multipass(&transactions, 2, 0);
+
+        assert_eq!(itemset_counts.len(), 3);
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"milk".to_string()]));
     }
     #[test]
     fn test_create_itemset_counts_1_transaction_max_1() {
@@ -212,8 +219,17 @@ mod tests {
         let itemset_counts = create_itemset_counts(&transactions, 1);
 
         assert_eq!(itemset_counts.len(), 2);
-        assert!(itemset_counts.contains_key(str_vec2!["bread"]));
-        assert!(itemset_counts.contains_key(str_vec2!["milk"]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string()]));
+    }
+    #[test]
+    fn test_create_itemset_counts_1_transaction_max_1_multipass() {
+        let transactions = vec![str_vec!["bread", "milk"]];
+        let itemset_counts = create_itemset_counts_multipass(&transactions, 1, 0);
+
+        assert_eq!(itemset_counts.len(), 2);
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string()]));
     }
     #[test]
     fn test_create_itemset_counts_2_transactions() {
@@ -221,11 +237,19 @@ mod tests {
         let itemset_counts = create_itemset_counts(&transactions, 2);
 
         assert_eq!(itemset_counts.len(), 5);
-        assert!(itemset_counts.contains_key(str_vec2!["bread"]));
-        assert!(itemset_counts.contains_key(str_vec2!["milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["yoghurt"]));
-        assert!(itemset_counts.contains_key(str_vec2!["bread", "milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["bread", "yoghurt"]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"yoghurt".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"yoghurt".to_string()]));
+    }
+    #[test]
+    fn test_create_itemset_counts_2_transactions_multipass() {
+        let transactions = vec![str_vec!["bread", "milk"], str_vec!["bread", "yoghurt"]];
+        let itemset_counts = create_itemset_counts_multipass(&transactions, 2, 2);
+
+        assert_eq!(itemset_counts.len(), 1);
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
     }
     #[test]
     fn test_create_itemset_counts_3_transactions() {
@@ -237,16 +261,35 @@ mod tests {
         let itemset_counts = create_itemset_counts(&transactions, 3);
 
         assert_eq!(itemset_counts.len(), 10);
-        assert!(itemset_counts.contains_key(str_vec2!["bread"]));
-        assert!(itemset_counts.contains_key(str_vec2!["milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["yoghurt"]));
-        assert!(itemset_counts.contains_key(str_vec2!["cheese"]));
-        assert!(itemset_counts.contains_key(str_vec2!["bread", "milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["bread", "yoghurt"]));
-        assert!(itemset_counts.contains_key(str_vec2!["milk", "yoghurt"]));
-        assert!(itemset_counts.contains_key(str_vec2!["cheese", "milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["cheese", "yoghurt"]));
-        assert!(itemset_counts.contains_key(str_vec2!["cheese", "milk", "yoghurt"]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"yoghurt".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"cheese".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"yoghurt".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string(), &"yoghurt".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"cheese".to_string(), &"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"cheese".to_string(), &"yoghurt".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![
+            &"cheese".to_string(),
+            &"milk".to_string(),
+            &"yoghurt".to_string()
+        ]));
+    }
+    #[test]
+    fn test_create_itemset_counts_3_transactions_multipass_min_support_3() {
+        let transactions = vec![
+            str_vec!["bread", "milk"],
+            str_vec!["bread", "yoghurt"],
+            str_vec!["milk", "candy", "cheese"],
+            str_vec!["bread", "yoghurt", "milk"],
+        ];
+        let itemset_counts = create_itemset_counts_multipass(&transactions, 3, 3);
+
+        assert_eq!(itemset_counts.len(), 3);
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"milk".to_string()]));
     }
     #[test]
     fn test_create_itemset_counts_3_transactions_max_2() {
@@ -258,14 +301,14 @@ mod tests {
         let itemset_counts = create_itemset_counts(&transactions, 2);
 
         assert_eq!(itemset_counts.len(), 9);
-        assert!(itemset_counts.contains_key(str_vec2!["bread"]));
-        assert!(itemset_counts.contains_key(str_vec2!["milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["yoghurt"]));
-        assert!(itemset_counts.contains_key(str_vec2!["cheese"]));
-        assert!(itemset_counts.contains_key(str_vec2!["bread", "milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["bread", "yoghurt"]));
-        assert!(itemset_counts.contains_key(str_vec2!["milk", "yoghurt"]));
-        assert!(itemset_counts.contains_key(str_vec2!["cheese", "milk"]));
-        assert!(itemset_counts.contains_key(str_vec2!["cheese", "yoghurt"]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"yoghurt".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"cheese".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"bread".to_string(), &"yoghurt".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"milk".to_string(), &"yoghurt".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"cheese".to_string(), &"milk".to_string()]));
+        assert!(itemset_counts.contains_key(&vec![&"cheese".to_string(), &"yoghurt".to_string()]));
     }
 }
