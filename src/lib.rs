@@ -81,7 +81,7 @@ fn apriori(transactions: Vec<Vec<String>>, min_support: f32, min_confidence: f32
                     let den = (*itemset_counts.get(&antecedent).unwrap()) as f32;
                     let num = *count as f32;
                     if num > min_confidence * den {
-                        println!("• {:?} -> {:?}", antecedent, y,);
+                        // println!("• {:?} -> {:?}", antecedent, y,);
                     }
 
                     antecedents.insert(antecedent);
@@ -132,7 +132,7 @@ fn create_itemset_counts(
         });
     });
 
-    println!("{:?}", itemset_counts);
+    // println!("{:?}", itemset_counts);
 
     itemset_counts
 }
@@ -157,7 +157,7 @@ fn create_itemset_counts_multipass(
     let mut to_remove = HashSet::new();
     one_itemset_counts.iter_mut().for_each(|(&k, &mut v)| {
         if v < min_support_count {
-            println!("Removing {}. Support count {}", k, v);
+            // println!("Removing {}. Support count {}", k, v);
             to_remove.insert(k);
         }
     });
@@ -185,7 +185,7 @@ fn create_itemset_counts_multipass(
     });
     one_itemset_counts.clear();
 
-    println!("{:?}", itemset_counts);
+    // println!("{:?}", itemset_counts);
 
     itemset_counts
 }
