@@ -7,6 +7,7 @@ name = "apriori"
 version = "0.1.0"
 dependencies = [
  "itertools",
+ "maplit",
  "pyo3",
 ]
 
@@ -83,6 +84,12 @@ checksum = "712a4d093c9976e24e7dbca41db895dabcbac38eb5f4045393d17a95bdfb1109"
 dependencies = [
  "scopeguard",
 ]
+
+[[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
 
 [[package]]
 name = "once_cell"
