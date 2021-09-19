@@ -69,7 +69,6 @@ fn apriori(
         let mut antecedents: HashSet<Vec<usize>> = HashSet::new();
         let mut skipped_ys: HashSet<Vec<usize>> = HashSet::new();
 
-        
         candidate
             .iter()
             .permutations(candidate.len())
@@ -149,12 +148,20 @@ fn generate_frequent_itemsets<'items>(
     let counts = conversion_course(counts);
     counter.insert(1, counts);
 
+    let mut nonfrequent: Vec<Itemset> = vec![];
+
     // Then generate the rest
     for size in 2..=k {
         println!("\nCounting itemsets of length {}.", size);
         let prev_itemset_counts = &counter[&(size - 1_usize)];
-        let mut counts = create_counts_from_prev(prev_itemset_counts, size);
-        update_counts_with_transactions(&mut counts, &transactions_new, min_support, size);
+        let mut counts = create_counts_from_prev(prev_itemset_counts, size, &nonfrequent);
+        update_counts_with_transactions(
+            &mut counts,
+            &transactions_new,
+            min_support,
+            size,
+            &mut nonfrequent,
+        );
         counter.insert(size, counts);
     }
 
@@ -167,6 +174,7 @@ fn update_counts_with_transactions(
     transactions: &[TransactionNew],
     min_support: f32,
     size: usize,
+    nonfrequent: &mut Vec<Itemset>,
 ) {
     let N = transactions.len() as f32;
 
@@ -184,13 +192,34 @@ fn update_counts_with_transactions(
         });
 
     println!("Pruning...");
-    candidate_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
+
+    if size == 2 {
+        println!("⭐️ experimental pruning...");
+        println!(
+            "initially candidate counts length: {}",
+            candidate_counts.len()
+        );
+        candidate_counts
+            .iter()
+            .for_each(|(candidate, &support_count)| {
+                if (support_count as f32 / N) < min_support {
+                    nonfrequent.push(candidate.to_owned());
+                }
+            });
+        println!("then nonfrequent length: {}", nonfrequent.len());
+        candidate_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
+        println!("but candidate counts length: {}", candidate_counts.len());
+    } else {
+        println!("Pruning...");
+        candidate_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
+    }
 }
 
 /// target k
 fn create_counts_from_prev<'items>(
     itemset_counts: &ItemsetCounts<'items>,
     size: usize,
+    nonfrequent: &Vec<Itemset>,
 ) -> ItemsetCounts<'items> {
     // if !itemset_counts.keys().all(|key| key.len() == size - 1) {
     //     panic!("keys of itemset_counts must be size-1");
@@ -205,24 +234,50 @@ fn create_counts_from_prev<'items>(
     }
 
     println!("enumerating combinations...");
-    let combinations = unique_items.iter().combinations(size);
+    // if size == 3 {
+    //     println!("⭐️ experimental enumerating combinations...");
 
+    //     let curr: &Vec<&Itemset> = &itemset_counts.keys().collect();
+    //     println!("curr: {}", curr.len());
+    //     let prev: &Vec<&Itemset> = &counter[&(size - 1_usize)].keys().collect();
+    //     println!("prev: {}", prev.len());
+    //     println!("nonfreq: {}", nonfrequent.len());
+    //     let nono: &Vec<&Itemset> = &nonfrequent.iter().collect();
+    //     let combinations = get_combinations(prev, curr, nono);
+
+    //     // bottlenec
+    //     println!("checking combinations...");
+    //     let mut num_combis = 0;
+
+    //     for combi in combinations.into_iter() {
+    //         next_itemset_counts.insert(combi.iter().copied().collect(), 0);
+    //         num_combis += 1;
+    //     }
+    //     println!("combinations: {}", num_combis);
+    // } else {
+    let combinations = unique_items.iter().combinations(size);
     // bottlenec
     println!("checking combinations...");
     let mut num_combis = 0;
 
-    for mut combi in combinations.into_iter() {
+    'combi: for mut combi in combinations.into_iter() {
         combi.sort_unstable();
 
+        for nonfreq in nonfrequent.iter() {
+            if nonfreq.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
+                continue 'combi;
+            }
+        }
         for prev_itemset in itemset_counts.keys() {
             if prev_itemset.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
                 next_itemset_counts.insert(combi.iter().map(|x| **x).collect(), 0);
                 num_combis += 1;
-                break;
+                continue 'combi;
             }
         }
     }
     println!("combinations: {}", num_combis);
+    // }
 
     // if !next_itemset_counts.keys().all(|key| key.len() == size) {
     //     panic!("keys of itemset_counts must be size-1");
@@ -294,7 +349,7 @@ fn create_counts<'items>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use maplit::hashmap;
+    use maplit::hashmap;
 
     macro_rules! transaction {
         ($($x:expr),*) => {
@@ -628,91 +683,116 @@ mod tests {
     //     assert_eq!(frequent_itemsets, expected);
     // }
 
-    // #[test]
-    // fn test_get_blacklist() {
-    //     let keys0 = vec![itemset![11], itemset![13], itemset![10]];
-    //     let keys1: Vec<&Itemset> = keys0.iter().collect();
+    #[test]
+    fn test_get_blacklist() {
+        let keys = vec![itemset![11], itemset![12], itemset![20]];
+        let keys: &Vec<&Itemset> = &keys.iter().collect();
+        let blacklist = vec![itemset![11, 20], itemset![20, 23]];
+        let blacklist: &Vec<&Itemset> = &blacklist.iter().collect();
+        let h = get_blacklist(keys, blacklist);
 
-    //     let blacklist = vec![itemset![11, 10], itemset![10, 12]];
-    //     let h = get_blacklist(&keys1, &blacklist);
-    //     assert_eq!(
-    //         h,
-    //         hashmap! {
-    //             itemset![11] => itemset![10],
-    //             itemset![10] => itemset![11, 12],
-    //         }
-    //     );
-    // }
+        assert_eq!(h.len(), 2);
+        assert_eq!(
+            h,
+            hashmap! {
+                itemset![11] => itemset![20],
+                itemset![20] => itemset![11, 23],
+            }
+        );
+    }
 
-    // #[test]
-    // fn test_get_combinations() {
-    //     let prevs0 = vec![itemset![0], itemset![3], itemset![1]];
-    //     let prevs1: Vec<&Itemset> = prevs0.iter().collect();
-    //     let nono = vec![itemset![0, 2], itemset![2, 4]];
-    //     let currs0 = vec![
-    //         itemset![0, 3],
-    //         itemset![0, 4],
-    //         itemset![3, 2],
-    //         itemset![3, 4],
-    //     ];
-    //     let currs = currs0.iter().collect();
-    //     let combis = get_combinations(&prevs1, &currs, &nono);
-    //     assert_eq!(combis, hashset![itemset![0, 3, 4]]);
-    // }
+    #[test]
+    fn test_get_combinations() {
+        let prevs = vec![itemset![0], itemset![1], itemset![2]];
+        let prevs: &Vec<&Itemset> = &prevs.iter().collect();
+        let nonfrequent = vec![itemset![0, 2], itemset![2, 3]];
+        let nonfrequent: &Vec<&Itemset> = &nonfrequent.iter().collect();
+        let currs = vec![
+            itemset![0, 1],
+            itemset![0, 3],
+            itemset![1, 2],
+            itemset![1, 3],
+        ];
+        let currs: &Vec<&Itemset> = &currs.iter().collect();
+        let combis = get_combinations(&prevs, &currs, &nonfrequent);
+        assert_eq!(combis, hashset![itemset![0, 1, 3]]);
+    }
 }
 
-// fn get_combinations<'a>(
-//     prevs: &Vec<&Itemset>,
-//     currs: &Vec<&Itemset>,
-//     nono: &[Itemset],
-// ) -> HashSet<Itemset> {
-//     let mut combis = HashSet::new();
+fn get_combinations(
+    prev_candidates: &[&Itemset],
+    curr_candidates: &[&Itemset],
+    nono: &[&Itemset],
+) -> HashSet<Itemset> {
+    let mut combis = HashSet::new();
 
-//     let blacklist = get_blacklist(prevs, nono);
+    println!("getting combis...");
+    let blacklist = get_blacklist(prev_candidates, nono);
 
-//     for &prev in prevs {
-//         for &curr in currs.iter() {
-//             if curr.is_superset(prev) {
-//                 continue;
-//             }
+    for prev_candidate in prev_candidates {
+        for curr_candidate in curr_candidates.iter() {
+            if prev_candidate
+                .iter()
+                .any(|item| curr_candidate.contains(item))
+            {
+                continue;
+            }
 
-//             if blacklist.contains_key(prev)
-//                 && curr
-//                     .intersection(&blacklist[prev])
-//                     .peekable()
-//                     .peek()
-//                     .is_some()
-//             {
-//                 continue;
-//             }
-//             let mut h: Itemset = (*curr).iter().cloned().collect();
-//             let k: Itemset = prev.iter().cloned().collect();
-//             h.extend(k);
-//             combis.insert(h);
-//         }
-//     }
-//     combis
-// }
+            if blacklist.contains_key(*prev_candidate)
+                && curr_candidate
+                    .iter()
+                    .any(|item| curr_candidate.contains(item))
+            {
+                continue;
+            }
 
-// fn get_blacklist<'a>(keys: &[&Itemset], blacklist: &[Itemset]) -> HashMap<Itemset, Itemset> {
-//     let mut dict: HashMap<Itemset, Itemset> = HashMap::new();
+            let mut combi: Itemset = curr_candidate.to_vec();
+            combi.extend(&(*prev_candidate).clone());
+            combi.sort_unstable();
+            combis.insert(combi);
+        }
+    }
+    combis
+}
 
-//     for &key in keys {
-//         for x in blacklist.iter() {
-//             if !x.is_superset(key) {
-//                 continue;
-//             }
+type FrequentItemset = Itemset;
+type NonfrequentItemset = Itemset;
 
-//             let diff: BTreeSet<usize> = x.difference(key).copied().collect();
+/// Assume sorted
+fn get_blacklist(
+    frequent_candidates: &[&Itemset],
+    nonfrequent_candidates: &[&Itemset],
+) -> HashMap<FrequentItemset, NonfrequentItemset> {
+    let mut dict: HashMap<Itemset, Itemset> = HashMap::new();
 
-//             if dict.contains_key(key) {
-//                 let entry = dict.get_mut(key).unwrap();
-//                 entry.extend(diff);
-//             } else {
-//                 dict.insert(key.clone(), diff);
-//             }
-//         }
-//     }
+    for frequent_candidate in frequent_candidates {
+        for nonfrequent_candidate in nonfrequent_candidates {
+            // if k is len 1
 
-//     dict
-// }
+            let frequent_candidate1: HashSet<usize> = frequent_candidate.iter().cloned().collect();
+            let nonfrequent_candidate1: HashSet<usize> =
+                nonfrequent_candidate.iter().cloned().collect();
+
+            if frequent_candidate1.is_subset(&nonfrequent_candidate1) {
+                let mut nonfrequent_items: Vec<usize> = frequent_candidate1
+                    .symmetric_difference(&nonfrequent_candidate1)
+                    .copied()
+                    .collect();
+
+                nonfrequent_items.sort_unstable();
+
+                if !nonfrequent_items.is_empty() {
+                    if dict.contains_key(*frequent_candidate) {
+                        let existing_nonfrequent_items = dict.get_mut(*frequent_candidate).unwrap();
+                        existing_nonfrequent_items.extend(nonfrequent_items);
+                        existing_nonfrequent_items.sort_unstable();
+                    } else {
+                        dict.insert(frequent_candidate.to_vec(), nonfrequent_items);
+                    }
+                }
+            }
+        }
+    }
+
+    dict
+}
