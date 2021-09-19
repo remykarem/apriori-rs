@@ -37,6 +37,72 @@ fn main() {
     }
 }
 
+/// Apriori algorithm for association rules.
+///
+/// Args:
+///     transactions: A list of list of items.
+///     min_support: The minimum support.
+///     min_confidence: The minimum confidence.
+///     max_len: Maximum no. of items in an association rule.
+///
+/// Returns:
+///     A list of association rules.
+#[pyfunction]
+#[pyo3(text_signature = "(/, *, transactions, min_support, min_confidence, max_len)")]
+fn apriori(
+    transactions: Vec<HashSet<&str>>,
+    min_support: f32,
+    min_confidence: f32,
+    max_len: usize,
+) {
+    let N = transactions.len();
+
+    let (itemset_counts, _) = generate_frequent_itemsets(&transactions, min_support, max_len);
+
+    println!("Creating rules");
+
+    let candidates: HashMap<Itemset, u32> = itemset_counts
+        .into_iter()
+        .flat_map(|(_, itemset_count)| itemset_count)
+        .collect();
+
+    for (candidate, count) in &candidates {
+        let mut antecedents: HashSet<Vec<usize>> = HashSet::new();
+        let mut skipped_ys: HashSet<Vec<usize>> = HashSet::new();
+
+        
+        candidate
+            .iter()
+            .permutations(candidate.len())
+            .for_each(|pattern| {
+                for i in (1..pattern.len()).rev() {
+                    let rule = pattern.split_at(i);
+
+                    let (x, y) = rule;
+                    let mut antecedent: Vec<usize> = x.iter().map(|&&x| x).collect();
+
+                    if x.len() > 1 {
+                        antecedent.sort_unstable();
+                    }
+
+                    if antecedents.contains(&antecedent) {
+                        continue;
+                    }
+
+                    let num = *count as f32;
+                    let den = *candidates.get(&antecedent).unwrap() as f32;
+                    if num / den >= min_confidence {
+                        println!("• {:?} -> {:?}", antecedent, y,);
+                    } else {
+                        skipped_ys.insert(y.iter().map(|&&x| x).collect());
+                    }
+
+                    antecedents.insert(antecedent);
+                }
+            });
+    }
+}
+
 #[pyfunction]
 fn generate_frequent_itemsets_wrapper(
     transactions: Vec<TransactionRaw>,
