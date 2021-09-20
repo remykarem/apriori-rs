@@ -194,11 +194,6 @@ fn update_counts_with_transactions(
     println!("Pruning...");
 
     if size == 2 {
-        println!("⭐️ experimental pruning...");
-        println!(
-            "initially candidate counts length: {}",
-            candidate_counts.len()
-        );
         candidate_counts
             .iter()
             .for_each(|(candidate, &support_count)| {
@@ -208,9 +203,7 @@ fn update_counts_with_transactions(
             });
         println!("then nonfrequent length: {}", nonfrequent.len());
         candidate_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
-        println!("but candidate counts length: {}", candidate_counts.len());
     } else {
-        println!("Pruning...");
         candidate_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
     }
 }
@@ -234,50 +227,62 @@ fn create_counts_from_prev<'items>(
     }
 
     println!("enumerating combinations...");
-    // if size == 3 {
-    //     println!("⭐️ experimental enumerating combinations...");
+    if size >= 3 {
+        println!("⭐️ experimental enumerating combinations...");
 
-    //     let curr: &Vec<&Itemset> = &itemset_counts.keys().collect();
-    //     println!("curr: {}", curr.len());
-    //     let prev: &Vec<&Itemset> = &counter[&(size - 1_usize)].keys().collect();
-    //     println!("prev: {}", prev.len());
-    //     println!("nonfreq: {}", nonfrequent.len());
-    //     let nono: &Vec<&Itemset> = &nonfrequent.iter().collect();
-    //     let combinations = get_combinations(prev, curr, nono);
+        println!("start");
+        println!("len itemset-count: {}", itemset_counts.len());
+        let mut curr: Vec<Itemset> = itemset_counts.keys().cloned().collect();
+        let combinations = join_step(&mut curr);
+        println!("stop");
+        // println!("{:?}", combinations);
 
-    //     // bottlenec
-    //     println!("checking combinations...");
-    //     let mut num_combis = 0;
+        println!("curr: {}", curr.len());
+        println!("combis: {}", combinations.len());
 
-    //     for combi in combinations.into_iter() {
-    //         next_itemset_counts.insert(combi.iter().copied().collect(), 0);
-    //         num_combis += 1;
-    //     }
-    //     println!("combinations: {}", num_combis);
-    // } else {
-    let combinations = unique_items.iter().combinations(size);
-    // bottlenec
-    println!("checking combinations...");
-    let mut num_combis = 0;
+        // bottlenec
+        println!("checking combinations...");
+        let mut num_combis = 0;
 
-    'combi: for mut combi in combinations.into_iter() {
-        combi.sort_unstable();
-
-        for nonfreq in nonfrequent.iter() {
-            if nonfreq.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
-                continue 'combi;
+        'combi1: for combi in combinations.into_iter() {
+            for nonfreq in nonfrequent.iter() {
+                if nonfreq.iter().zip(combi.iter()).all(|(x, y)| x == y) {
+                    continue 'combi1;
+                }
             }
+            // for prev_itemset in itemset_counts.keys() {
+            //     if prev_itemset.iter().zip(combi.iter()).all(|(x, y)| x == y) {
+                    next_itemset_counts.insert(combi.iter().copied().collect(), 0);
+            //         num_combis += 1;
+            //         continue 'combi1;
+            //     }
+            // }
         }
-        for prev_itemset in itemset_counts.keys() {
-            if prev_itemset.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
-                next_itemset_counts.insert(combi.iter().map(|x| **x).collect(), 0);
-                num_combis += 1;
-                continue 'combi;
+        println!("combinations: {}", num_combis);
+    } else {
+        let combinations = unique_items.iter().combinations(size);
+        // bottlenec
+        println!("checking combinations...");
+        let mut num_combis = 0;
+
+        'combi: for mut combi in combinations.into_iter() {
+            combi.sort_unstable();
+
+            for nonfreq in nonfrequent.iter() {
+                if nonfreq.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
+                    continue 'combi;
+                }
             }
+            // for prev_itemset in itemset_counts.keys() {
+            //     if prev_itemset.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
+                    next_itemset_counts.insert(combi.iter().map(|x| **x).collect(), 0);
+            //         num_combis += 1;
+            //         continue 'combi;
+            //     }
+            // }
         }
+        println!("combinations: {}", num_combis);
     }
-    println!("combinations: {}", num_combis);
-    // }
 
     // if !next_itemset_counts.keys().all(|key| key.len() == size) {
     //     panic!("keys of itemset_counts must be size-1");
@@ -717,6 +722,65 @@ mod tests {
         let combis = get_combinations(&prevs, &currs, &nonfrequent);
         assert_eq!(combis, hashset![itemset![0, 1, 3]]);
     }
+
+    #[test]
+    fn test_join_step() {
+        println!("Hello, world!");
+        let mut itemsets: Vec<Itemset> = vec![
+            vec![1, 2, 3],
+            vec![1, 2, 4],
+            vec![1, 3, 4],
+            vec![1, 3, 5],
+            vec![2, 3, 4],
+        ];
+        let y = join_step(&mut itemsets);
+        println!("{:?}", y);
+    }
+}
+
+/// https://github.com/tommyod/Efficient-Apriori/blob/master/efficient_apriori/itemsets.py
+fn join_step(itemsets: &mut [Itemset]) -> Vec<Itemset> {
+    let mut final_itemsets: Vec<Itemset> = vec![];
+
+    itemsets.sort_unstable();
+
+    let mut i = 0;
+    while i < itemsets.len() {
+        let mut skip = 1;
+
+        let (itemset_first, itemset_last) = itemsets[i].split_at(itemsets[i].len() - 1);
+        let itemset_last = itemset_last.to_owned().pop().unwrap();
+
+        let mut tail_items: Itemset = vec![itemset_last];
+
+        for j in (i + 1)..itemsets.len() {
+            let (itemset_n_first, itemset_n_last) = itemsets[j].split_at(itemsets[j].len() - 1);
+            let itemset_n_last = itemset_n_last.to_owned().pop().unwrap();
+
+            if itemset_first == itemset_n_first {
+                tail_items.push(itemset_n_last);
+                skip += 1;
+            } else {
+                break;
+            }
+        }
+
+        for combi in tail_items.iter().combinations(2).sorted() {
+            let mut itemset_first_tuple = itemset_first.to_owned();
+            let (a, b) = combi.split_at(1);
+            let a = *a.to_owned().pop().unwrap();
+            let b = *b.to_owned().pop().unwrap();
+
+            itemset_first_tuple.push(a);
+            itemset_first_tuple.push(b);
+            // itemset_first_tuple.sort_unstable();
+            final_itemsets.push(itemset_first_tuple.to_owned());
+        }
+
+        i += skip;
+    }
+
+    final_itemsets
 }
 
 fn get_combinations(
