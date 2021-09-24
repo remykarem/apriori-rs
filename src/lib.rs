@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 mod itemset;
 mod rules;
+mod combi;
 
 use std::collections::HashSet;
 
