@@ -1,19 +1,19 @@
-use core::hash::{Hash, Hasher};
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, VecDeque},
     fmt::{Display, Formatter, Result},
 };
-#[macro_use]
-extern crate maplit;
+
+use itertools::Itertools;
 
 type ItemId = usize;
 type Itemset = Vec<ItemId>;
 type Counts = HashMap<Itemset, usize>;
 type ItemsetCounter = HashMap<usize, Counts>;
 
+#[macro_use]
+extern crate maplit;
+
 fn main() {
-    let combi = vec![1, 2, 3, 4];
-    let min_conf = 0.6;
     let counter: ItemsetCounter = hashmap! {
         1 => hashmap! {
             vec![1] => 9,
@@ -39,60 +39,80 @@ fn main() {
             vec![1, 2, 3, 4] => 2,
         },
     };
-    println!("{:?}", counter);
+    let min_conf = 0.8;
 
-    bfs(&combi, min_conf, &counter);
+    let assoc_rules = generate_rules(&min_conf, &counter);
+
+    for r in &assoc_rules {
+        println!("{}", r);
+    }
 }
 
-fn bfs(combi: &Itemset, min_conf: f32, counter: &ItemsetCounter) {
-    let mut queue: VecDeque<Rule> = VecDeque::new();
+fn generate_rules(min_conf: &f32, counter: &ItemsetCounter) -> Vec<Rule> {
+    counter
+        .iter()
+        .filter_map(|(&itemset_size, itemset_counts)| {
+            if itemset_size > 1 {
+                Some(itemset_counts)
+            } else {
+                None
+            }
+        })
+        .flat_map(|itemset_counts| {
+            itemset_counts
+                .iter()
+                .flat_map(|(combi, _)| {
+                    let combi = combi.iter().copied().collect();
+                    bfs(&combi, min_conf, counter)
+                })
+                .collect::<Vec<Rule>>()
+        })
+        .collect()
+}
 
+fn bfs(combi: &Itemset, &min_conf: &f32, counter: &ItemsetCounter) -> Vec<Rule> {
+    let mut queue: VecDeque<Rule> = VecDeque::new();
     let rules = Rule::from_pattern(combi);
-    let mut num_nodes_in_layer = rules.len() - 1;
     queue.extend(rules);
     let mut blacklist = vec![];
     let mut final_rules = vec![];
 
     while let Some(rule) = queue.pop_front() {
-        let confidence = rule.compute_confidence(counter);
+        println!("Analysing rule: {}", &rule);
+
+        if rule.is_a_child_of_a_blacklisted_rule(&blacklist) {
+            println!(
+                " Skipping {} because it's a child of a blacklisted rule",
+                &rule
+            );
+            continue;
+        }
+
+        let confidence = rule.compute_confidence(counter, combi);
 
         if confidence >= min_conf {
             if let Some(new_rules) = rule.create_children(&blacklist, Some(&queue)) {
                 queue.extend(new_rules);
             }
-            println!("pushing {}", rule);
             final_rules.push(rule);
         } else {
-            println!("blacklisting {}", rule);
+            println!(" Blacklisting because low confidence");
             blacklist.push(rule);
         }
+    }
 
-        println!("{}", num_nodes_in_layer);
-        if num_nodes_in_layer == 1 {
-            num_nodes_in_layer = queue.len() - 1;
-        } else if num_nodes_in_layer == 0 {
-            continue;
-        } else {
-            // pop
-            num_nodes_in_layer -= 1;
-        }
-    }
-    for r in &final_rules {
-        println!("{}", r);
-    }
+    final_rules
 }
 
 #[derive(Debug)]
-struct Rule<'mother> {
-    reference: &'mother Vec<usize>,
+struct Rule {
     split: usize,
     combi: Vec<usize>,
 }
 
-impl<'mother> Rule<'mother> {
+impl Rule {
     fn from_pattern(pattern: &Vec<usize>) -> Vec<Rule> {
         let mother = Rule {
-            reference: pattern,
             split: pattern.len(),
             combi: pattern.iter().copied().collect(),
         };
@@ -100,8 +120,8 @@ impl<'mother> Rule<'mother> {
     }
     fn create_children(
         &self,
-        others: &[Self],
-        explored: Option<&VecDeque<Self>>,
+        blacklist: &[Self],
+        to_create: Option<&VecDeque<Self>>,
     ) -> Option<Vec<Self>> {
         if self.split <= 1 {
             return None;
@@ -122,21 +142,42 @@ impl<'mother> Rule<'mother> {
             conseq.sort_unstable();
 
             let rule = Self {
-                reference: self.reference,
                 split: new_split,
                 combi,
             };
 
-            if let Some(exploreds) = explored {
-                if exploreds.contains(&rule) {
-                    continue;
-                }
+            if rule.is_going_to_be_created(to_create) {
+                println!(" Skipping {} because it's queued to be created", &rule);
+                continue;
             }
-            if !others.iter().any(|other| rule.is_child_of(other)) {
+
+            if rule.is_a_child_of_a_blacklisted_rule(blacklist) {
+                println!(
+                    " Skipping {} because it's a child of a blacklisted rule",
+                    &rule
+                );
+            } else {
+                println!(" Creating {}", rule);
                 rules.push(rule);
             }
         }
+
         Some(rules)
+    }
+
+    fn is_going_to_be_created(&self, to_create: Option<&VecDeque<Self>>) -> bool {
+        if let Some(to_create) = to_create {
+            if to_create.contains(self) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn is_a_child_of_a_blacklisted_rule(&self, blacklist: &[Self]) -> bool {
+        blacklist
+            .iter()
+            .any(|blacklisted_rule| self.is_child_of(blacklisted_rule))
     }
 
     fn get_antecedent(&self) -> &[usize] {
@@ -146,9 +187,6 @@ impl<'mother> Rule<'mother> {
         &self.combi[self.split..]
     }
     fn is_child_of(&self, parent: &Self) -> bool {
-        if self.reference != parent.reference {
-            return false;
-        }
         if self.combi.len() != parent.combi.len() {
             return false;
         }
@@ -159,36 +197,16 @@ impl<'mother> Rule<'mother> {
         let conseq = self.get_consequent();
         parent.get_consequent().iter().all(|x| conseq.contains(x))
     }
-    fn compute_confidence(&self, counter: &ItemsetCounter) -> f32 {
+    fn compute_confidence(&self, counter: &ItemsetCounter, combi: &Itemset) -> f32 {
         let antecedent_support =
             counter[&self.get_antecedent().len()][self.get_antecedent()] as f32;
         // todo
-        let union_support = counter[&self.combi.len()][self.reference] as f32;
+        let union_support = counter[&self.combi.len()][combi] as f32;
         union_support / antecedent_support
     }
 }
 
-// fn get_stuff() {
-//     let mut queue: VecDeque<Rule> = VecDeque::new();
-//     let min_conf = 0.2;
-//     let mother = vec![1, 2, 3, 4, 5];
-//     let rules = Rule::from_pattern(&mother);
-//     queue.extend(rules);
-
-//     while let Some(rule) = queue.pop_front() {
-//         println!("{}", rule);
-//         let confidence = rule.compute_confidence();
-//         if confidence >= min_conf {
-//             if let Some(new_rules) = rule.create_children(&[], None) {
-//                 queue.extend(new_rules);
-//             }
-//         } else {
-//             continue;
-//         }
-//     }
-// }
-
-impl<'mother> Display for Rule<'mother> {
+impl Display for Rule {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         write!(
             f,
@@ -199,77 +217,70 @@ impl<'mother> Display for Rule<'mother> {
     }
 }
 
-impl<'mother> PartialEq for Rule<'mother> {
-    fn eq(&self, other: &Rule<'mother>) -> bool {
-        // self.split == other.split
-        //     && self.reference == other.reference
-        //     && self.combi[..self.split] == other.combi[..self.split]
-        self.combi[self.split..] == other.combi[self.split..]
+impl PartialEq for Rule {
+    fn eq(&self, other: &Rule) -> bool {
+        // assumes same pattern
+        self.split == other.split && self.combi[self.split..] == other.combi[self.split..]
     }
 }
-
-impl<'mother> Hash for Rule<'mother> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.combi[self.split..].hash(state);
-    }
-}
-
-impl<'mother> Eq for Rule<'mother> {}
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
+    use std::collections::VecDeque;
 
     use super::Rule;
     #[test]
-    fn test_rule() {
-        let reference = vec![1, 2, 3, 4];
+    fn test_rule_eq_1() {
+        let rule1 = Rule {
+            split: 2,
+            combi: vec![1, 2, 3, 5],
+        };
+        let rule2 = Rule {
+            split: 2,
+            combi: vec![1, 2, 3, 5],
+        };
+        assert!(rule1 == rule2);
+    }
+    #[test]
+    fn test_rule_eq_2() {
+        let rule1 = Rule {
+            split: 2,
+            combi: vec![1, 2, 3, 5],
+        };
+        let rule2 = Rule {
+            split: 2,
+            combi: vec![9, 10, 3, 5],
+        };
+        assert!(rule1 == rule2);
+    }
+    #[test]
+    fn test_rule_eq_3() {
+        let rule1 = Rule {
+            split: 2,
+            combi: vec![1, 2, 3, 5],
+        };
+        let rule2 = Rule {
+            split: 2,
+            combi: vec![9, 10, 5],
+        };
+        assert!(rule1 != rule2);
+    }
+    #[test]
+    fn test_rule_contains() {
+        let rules = VecDeque::from(vec![Rule {
+            split: 3,
+            combi: vec![1, 3, 4, 2],
+        }]);
         let rule = Rule {
-            reference: &reference,
             split: 2,
-            combi: vec![1, 2, 3, 5],
+            combi: vec![3, 5, 1, 2],
         };
-        println!("{}", rule);
-    }
-    #[test]
-    fn test_rule_eq() {
-        let reference = vec![1, 2, 3, 4];
-        let rule1 = Rule {
-            reference: &reference,
-            split: 2,
-            combi: vec![1, 2, 3, 5],
-        };
-        let rule2 = Rule {
-            reference: &reference,
-            split: 2,
-            combi: vec![1, 2, 3, 5],
-        };
-        println!("{}", rule1 == rule2);
-    }
-    #[test]
-    fn test_rule_hash() {
-        let reference = vec![1, 2, 3, 4];
-        let rule1 = Rule {
-            reference: &reference,
-            split: 2,
-            combi: vec![1, 2, 3, 5],
-        };
-        let mut set: HashSet<Rule> = HashSet::new();
-        set.insert(rule1);
-        let rule2 = Rule {
-            reference: &reference,
-            split: 2,
-            combi: vec![0, 0, 3, 5],
-        };
-
-        assert!(set.contains(&rule2));
+        assert!(!rules.contains(&rule));
     }
 
     #[test]
     fn test_rule_children() {
-        let reference = vec![1, 2, 3, 4, 5];
         let rule = Rule {
-            reference: &reference,
             split: 4,
             combi: vec![1, 2, 3, 4, 5],
         };
@@ -290,9 +301,7 @@ mod test {
     }
     #[test]
     fn test_heritage() {
-        let reference = vec![1, 2, 3, 4, 5];
         let parent = Rule {
-            reference: &reference,
             split: 4,
             combi: vec![
                 1, 2, 3, 4, // ante
@@ -300,7 +309,6 @@ mod test {
             ],
         };
         let child = Rule {
-            reference: &reference,
             split: 3,
             combi: vec![
                 1, 2, 3, // ante
