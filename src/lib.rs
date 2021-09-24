@@ -1,23 +1,31 @@
 #![allow(non_snake_case)]
+mod combi;
 mod itemset;
 mod rules;
-mod combi;
+mod types;
 
-use std::collections::HashSet;
-
-use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyFrozenSet};
 use pyo3::wrap_pyfunction;
+use pyo3::{prelude::*, PyObjectProtocol};
+use std::collections::{HashMap, HashSet};
+use types::FrequentItemsets;
 
-type TransactionRaw<'l> = HashSet<&'l str>;
+type RawTransaction<'l> = HashSet<&'l str>;
 
 fn main() {
     #[pymodule]
     fn apriori(_: Python, m: &PyModule) -> PyResult<()> {
-        m.add_function(wrap_pyfunction!(generate_frequent_itemsets_wrapper, m)?)?;
+        m.add_function(wrap_pyfunction!(generate_frequent_itemsets, m)?)?;
         m.add_function(wrap_pyfunction!(apriori, m)?)?;
+        m.add_class::<Person>()?;
         Ok(())
     }
+}
+
+#[pyclass]
+struct Person {
+    #[pyo3(get, set)]
+    name: String,
 }
 
 /// Apriori algorithm for association rules.
@@ -37,28 +45,51 @@ fn apriori(
     min_support: f32,
     min_confidence: f32,
     max_len: usize,
-) {
+) -> Vec<Rulez> {
     let (itemset_counts, _) =
         itemset::generate_frequent_itemsets(&transactions, min_support, max_len);
 
-    println!("Creating rules");
-
     let rules = rules::generate_rules(&min_confidence, &itemset_counts);
 
-    for rule in &rules {
-        println!("{:?}", rule);
+    rules
+        .into_iter()
+        .map(|x| Rulez {
+            split: x.split,
+            combi: x.combi,
+        })
+        .collect()
+}
+
+#[pyclass]
+struct Rulez {
+    split: usize,
+    combi: Vec<usize>,
+}
+
+#[pyproto]
+impl PyObjectProtocol for Rulez {
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(format!(
+            "Rule {:?} => {:?}",
+            &self.combi[..self.split],
+            &self.combi[self.split..]
+        ))
     }
 }
 
 #[pyfunction]
-fn generate_frequent_itemsets_wrapper(
-    transactions: Vec<TransactionRaw>,
+fn generate_frequent_itemsets(
+    transactions: Vec<RawTransaction>,
     min_support: f32,
     max_length: usize,
 ) -> Py<PyDict> {
     let (itemset_counts, _) =
         itemset::generate_frequent_itemsets(&transactions, min_support, max_length);
 
+    convert_itemset_counts(itemset_counts)
+}
+
+fn convert_itemset_counts(itemset_counts: FrequentItemsets) -> Py<PyDict> {
     Python::with_gil(|py| {
         itemset_counts
             .into_iter()

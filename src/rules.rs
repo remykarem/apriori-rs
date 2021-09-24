@@ -3,12 +3,7 @@ use std::{
     fmt::{Display, Formatter, Result},
 };
 
-use std::collections::HashMap;
-
-type ItemId = usize;
-type Itemset = Vec<ItemId>;
-type ItemsetCounts<'l> = HashMap<Itemset, u32>;
-type FrequentItemsets<'l> = HashMap<usize, ItemsetCounts<'l>>;
+use crate::types::{FrequentItemsets, Itemset};
 
 pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
     counter
@@ -68,8 +63,8 @@ fn bfs(combi: &Itemset, &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule
 
 #[derive(Debug)]
 pub struct Rule {
-    split: usize,
-    combi: Vec<usize>,
+    pub split: usize,
+    pub combi: Vec<usize>,
 }
 
 impl Rule {
