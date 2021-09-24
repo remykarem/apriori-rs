@@ -53,35 +53,61 @@ pub fn join_step(itemsets: &mut [Itemset]) -> Vec<Itemset> {
     final_itemsets
 }
 
+/// Cross prev_frequent with curr_frequent.
+/// If cross product has curr_nonfrequent, remove it.
+/// Assumes prev_frequent has itemsets of length k
+/// and curr_frequent (and curr_nonfrequent) has itemsets of length k+1.
+/// O(n^3)
+///
+/// prev_frequent | curr_frequent
+///           [0] | [0,1]
+///           [1] | [0,3]
+///           [2] | [1,2]
+///               | [1,3]
+/// curr_nonfrequent [0,2] [2,3]
+///
+/// • [0,1] (not enough)
+/// • [0,3] (not enough)
+/// • [0,1,2] (not okay; contains [0,2])
+/// • [0,1,3] (okay)      <-- 1
+/// • [0,1] (not enough)
+/// • [0,1,3] (already in 1)
+/// • [1,2] (not enough)
+/// • [1,3] (not enough)
+/// • [0,1,2] (not okay; contains [0,2])
+/// • [0,2,3] (not okay; contains [2,3])
+/// • [1,2] (not enough)
+/// • [1,2,3] (not okay; contains [2,3])
 fn get_combinations(
-    prev_candidates: &[&Itemset],
-    curr_candidates: &[&Itemset],
-    nono: &[&Itemset],
+    prev_frequent: &[&Itemset],
+    curr_frequent: &[&Itemset],
+    curr_nonfrequent: &[&Itemset],
 ) -> HashSet<Itemset> {
     let mut combis = HashSet::new();
 
     println!("getting combis...");
-    let blacklist = get_blacklist(prev_candidates, nono);
+    let blacklist = get_blacklist(prev_frequent, curr_nonfrequent);
 
-    for prev_candidate in prev_candidates {
-        for curr_candidate in curr_candidates.iter() {
-            if prev_candidate
+    for &prev_frequent in prev_frequent {
+        for &curr_frequent in curr_frequent {
+            // if the cross-product will result in k items (instead of k+1)
+            if prev_frequent
                 .iter()
-                .any(|item| curr_candidate.contains(item))
+                .any(|item| curr_frequent.contains(item))
             {
                 continue;
             }
 
-            if blacklist.contains_key(*prev_candidate)
-                && curr_candidate
+            if blacklist.contains_key(prev_frequent)
+                && curr_frequent
                     .iter()
-                    .any(|item| curr_candidate.contains(item))
+                    .any(|item| curr_frequent.contains(item))
             {
                 continue;
             }
 
-            let mut combi: Itemset = curr_candidate.to_vec();
-            combi.extend(&(*prev_candidate).clone());
+            let mut combi: Itemset = curr_frequent.to_vec();
+            combi.extend(&(*prev_frequent).clone());
             combi.sort_unstable();
             combis.insert(combi);
         }
@@ -91,34 +117,34 @@ fn get_combinations(
 
 /// Assume sorted
 fn get_blacklist(
-    frequent_candidates: &[&Itemset],
-    nonfrequent_candidates: &[&Itemset],
+    frequent_itemset: &[&Itemset],
+    nonfrequent_itemset: &[&Itemset],
 ) -> HashMap<FrequentItemset, NonfrequentItemset> {
     let mut dict: HashMap<Itemset, Itemset> = HashMap::new();
 
-    for frequent_candidate in frequent_candidates {
-        for nonfrequent_candidate in nonfrequent_candidates {
+    for &frequent_itemset in frequent_itemset {
+        for &nonfrequent_itemset in nonfrequent_itemset {
             // if k is len 1
 
-            let frequent_candidate1: HashSet<usize> = frequent_candidate.iter().cloned().collect();
-            let nonfrequent_candidate1: HashSet<usize> =
-                nonfrequent_candidate.iter().cloned().collect();
+            let frequent_itemset1: HashSet<usize> = frequent_itemset.iter().cloned().collect();
+            let nonfrequent_itemset1: HashSet<usize> =
+                nonfrequent_itemset.iter().cloned().collect();
 
-            if frequent_candidate1.is_subset(&nonfrequent_candidate1) {
-                let mut nonfrequent_items: Vec<usize> = frequent_candidate1
-                    .symmetric_difference(&nonfrequent_candidate1)
+            if frequent_itemset1.is_subset(&nonfrequent_itemset1) {
+                let mut nonfrequent_items: Vec<usize> = frequent_itemset1
+                    .symmetric_difference(&nonfrequent_itemset1)
                     .copied()
                     .collect();
 
                 nonfrequent_items.sort_unstable();
 
                 if !nonfrequent_items.is_empty() {
-                    if dict.contains_key(*frequent_candidate) {
-                        let existing_nonfrequent_items = dict.get_mut(*frequent_candidate).unwrap();
+                    if dict.contains_key(frequent_itemset) {
+                        let existing_nonfrequent_items = dict.get_mut(frequent_itemset).unwrap();
                         existing_nonfrequent_items.extend(nonfrequent_items);
                         existing_nonfrequent_items.sort_unstable();
                     } else {
-                        dict.insert(frequent_candidate.to_vec(), nonfrequent_items);
+                        dict.insert(frequent_itemset.to_vec(), nonfrequent_items);
                     }
                 }
             }
@@ -163,8 +189,19 @@ mod test {
         let mut itemsets: Vec<Itemset> =
             vec![vec![1, 2, 3], vec![1, 2, 4], vec![1, 3, 4], vec![2, 3, 4]];
         let y = join_step(&mut itemsets);
-        assert_eq!(y.len(), 1);
+        assert!(!y.is_empty());
         assert!(y.contains(&vec![1, 2, 3, 4]));
+    }
+
+    #[test]
+    fn test_join_step_3() {
+        let mut itemsets: Vec<Itemset> =
+            vec![vec![1, 2], vec![2, 3], vec![1, 3], vec![1, 4], vec![3, 4]];
+        let y = join_step(&mut itemsets);
+        println!("{:?}", y);
+        assert!(y.len() >= 2);
+        assert!(y.contains(&vec![1, 2, 3]));
+        assert!(y.contains(&vec![1, 3, 4]));
     }
 
     #[test]
@@ -189,12 +226,13 @@ mod test {
     fn test_get_combinations() {
         let prevs = vec![vec![0], vec![1], vec![2]];
         let prevs: &Vec<&Itemset> = &prevs.iter().collect();
-        let nonfrequent = vec![vec![0, 2], vec![2, 3]];
-        let nonfrequent: &Vec<&Itemset> = &nonfrequent.iter().collect();
         let currs = vec![vec![0, 1], vec![0, 3], vec![1, 2], vec![1, 3]];
         let currs: &Vec<&Itemset> = &currs.iter().collect();
+        let nonfrequent = vec![vec![0, 2], vec![2, 3]];
+        let nonfrequent: &Vec<&Itemset> = &nonfrequent.iter().collect();
+
         let combis = get_combinations(prevs, currs, nonfrequent);
-        
+
         assert_eq!(combis, hashset![vec![0, 1, 3]]);
     }
 }
