@@ -1,6 +1,11 @@
 #![allow(non_snake_case)]
 use std::collections::{HashMap, HashSet};
 
+use std::{
+    collections::VecDeque,
+    fmt::{Display, Formatter, Result},
+};
+
 use itertools::Itertools;
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyFrozenSet};
@@ -27,11 +32,9 @@ type TransactionRaw<'l> = HashSet<&'l str>;
 
 fn main() {
     #[pymodule]
-    fn apriori(_: Python, module: &PyModule) -> PyResult<()> {
-        module.add_function(wrap_pyfunction!(
-            generate_frequent_itemsets_wrapper,
-            module
-        )?)?;
+    fn apriori(_: Python, m: &PyModule) -> PyResult<()> {
+        m.add_function(wrap_pyfunction!(generate_frequent_itemsets_wrapper,m)?)?;
+        m.add_function(wrap_pyfunction!(apriori,m)?)?;
         Ok(())
     }
 }
@@ -60,44 +63,10 @@ fn apriori(
 
     println!("Creating rules");
 
-    let candidates: HashMap<Itemset, u32> = itemset_counts
-        .into_iter()
-        .flat_map(|(_, itemset_count)| itemset_count)
-        .collect();
+    let rules = generate_rules(&min_confidence, &itemset_counts);
 
-    for (candidate, count) in &candidates {
-        let mut antecedents: HashSet<Vec<usize>> = HashSet::new();
-        let mut skipped_ys: HashSet<Vec<usize>> = HashSet::new();
-
-        candidate
-            .iter()
-            .permutations(candidate.len())
-            .for_each(|pattern| {
-                for i in (1..pattern.len()).rev() {
-                    let rule = pattern.split_at(i);
-
-                    let (x, y) = rule;
-                    let mut antecedent: Vec<usize> = x.iter().map(|&&x| x).collect();
-
-                    if x.len() > 1 {
-                        antecedent.sort_unstable();
-                    }
-
-                    if antecedents.contains(&antecedent) {
-                        continue;
-                    }
-
-                    let num = *count as f32;
-                    let den = *candidates.get(&antecedent).unwrap() as f32;
-                    if num / den >= min_confidence {
-                        println!("• {:?} -> {:?}", antecedent, y,);
-                    } else {
-                        skipped_ys.insert(y.iter().map(|&&x| x).collect());
-                    }
-
-                    antecedents.insert(antecedent);
-                }
-            });
+    for rule in &rules {
+        println!("{:?}", rule);
     }
 }
 
@@ -252,7 +221,7 @@ fn create_counts_from_prev<'items>(
             }
             // for prev_itemset in itemset_counts.keys() {
             //     if prev_itemset.iter().zip(combi.iter()).all(|(x, y)| x == y) {
-                    next_itemset_counts.insert(combi.iter().copied().collect(), 0);
+            next_itemset_counts.insert(combi.iter().copied().collect(), 0);
             //         num_combis += 1;
             //         continue 'combi1;
             //     }
@@ -275,7 +244,7 @@ fn create_counts_from_prev<'items>(
             }
             // for prev_itemset in itemset_counts.keys() {
             //     if prev_itemset.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
-                    next_itemset_counts.insert(combi.iter().map(|x| **x).collect(), 0);
+            next_itemset_counts.insert(combi.iter().map(|x| **x).collect(), 0);
             //         num_combis += 1;
             //         continue 'combi;
             //     }
@@ -349,6 +318,182 @@ fn create_counts<'items>(
     one_itemset_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
 
     (one_itemset_counts, inventory, transactions_new)
+}
+
+#[derive(Debug)]
+struct Rule {
+    split: usize,
+    combi: Vec<usize>,
+}
+
+impl Rule {
+    fn from_pattern(pattern: &Vec<usize>) -> Vec<Rule> {
+        let mother = Rule {
+            split: pattern.len(),
+            combi: pattern.iter().copied().collect(),
+        };
+        mother.create_children(&[], None).unwrap()
+    }
+    fn create_children(
+        &self,
+        blacklist: &[Self],
+        to_create: Option<&VecDeque<Self>>,
+    ) -> Option<Vec<Self>> {
+        if self.split <= 1 {
+            return None;
+        }
+
+        let new_split = self.split - 1;
+        let mut rules = Vec::with_capacity(new_split);
+        let mut tmp_combi = self.combi.to_owned();
+
+        for _ in 0..self.split {
+            let window = &mut tmp_combi[..self.split];
+            window.rotate_left(1);
+
+            let mut combi = tmp_combi.clone();
+            let antecd = &mut combi[..new_split];
+            antecd.sort_unstable();
+            let conseq = &mut combi[new_split..];
+            conseq.sort_unstable();
+
+            let rule = Self {
+                split: new_split,
+                combi,
+            };
+
+            if rule.is_going_to_be_created(to_create) {
+                println!(" Skipping {} because it's queued to be created", &rule);
+                continue;
+            }
+
+            if rule.is_a_child_of_a_blacklisted_rule(blacklist) {
+                println!(
+                    " Skipping {} because it's a child of a blacklisted rule",
+                    &rule
+                );
+            } else {
+                println!(" Creating {}", rule);
+                rules.push(rule);
+            }
+        }
+
+        Some(rules)
+    }
+
+    fn is_going_to_be_created(&self, to_create: Option<&VecDeque<Self>>) -> bool {
+        if let Some(to_create) = to_create {
+            if to_create.contains(self) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn is_a_child_of_a_blacklisted_rule(&self, blacklist: &[Self]) -> bool {
+        blacklist
+            .iter()
+            .any(|blacklisted_rule| self.is_child_of(blacklisted_rule))
+    }
+
+    fn get_antecedent(&self) -> &[usize] {
+        &self.combi[..self.split]
+    }
+    fn get_consequent(&self) -> &[usize] {
+        &self.combi[self.split..]
+    }
+    fn is_child_of(&self, parent: &Self) -> bool {
+        if self.combi.len() != parent.combi.len() {
+            return false;
+        }
+        if self.get_consequent().len() <= parent.get_consequent().len() {
+            return false;
+        }
+
+        let conseq = self.get_consequent();
+        parent.get_consequent().iter().all(|x| conseq.contains(x))
+    }
+    fn compute_confidence(&self, counter: &FrequentItemsets, combi: &Itemset) -> f32 {
+        let antecedent_support =
+            counter[&self.get_antecedent().len()][self.get_antecedent()] as f32;
+        // todo
+        let union_support = counter[&self.combi.len()][combi] as f32;
+        union_support / antecedent_support
+    }
+}
+
+impl Display for Rule {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(
+            f,
+            "{:?} => {:?}",
+            &self.combi[..self.split],
+            &self.combi[self.split..]
+        )
+    }
+}
+
+impl PartialEq for Rule {
+    fn eq(&self, other: &Rule) -> bool {
+        // assumes same pattern
+        self.split == other.split && self.combi[self.split..] == other.combi[self.split..]
+    }
+}
+
+fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
+    counter
+        .iter()
+        .filter_map(|(&itemset_size, itemset_counts)| {
+            if itemset_size > 1 {
+                Some(itemset_counts)
+            } else {
+                None
+            }
+        })
+        .flat_map(|itemset_counts| {
+            itemset_counts
+                .iter()
+                .flat_map(|(combi, _)| {
+                    let combi = combi.iter().copied().collect();
+                    bfs(&combi, min_conf, counter)
+                })
+                .collect::<Vec<Rule>>()
+        })
+        .collect()
+}
+
+fn bfs(combi: &Itemset, &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
+    let mut queue: VecDeque<Rule> = VecDeque::new();
+    let rules = Rule::from_pattern(combi);
+    queue.extend(rules);
+    let mut blacklist = vec![];
+    let mut final_rules = vec![];
+
+    while let Some(rule) = queue.pop_front() {
+        println!("Analysing rule: {}", &rule);
+
+        if rule.is_a_child_of_a_blacklisted_rule(&blacklist) {
+            println!(
+                " Skipping {} because it's a child of a blacklisted rule",
+                &rule
+            );
+            continue;
+        }
+
+        let confidence = rule.compute_confidence(counter, combi);
+
+        if confidence >= min_conf {
+            if let Some(new_rules) = rule.create_children(&blacklist, Some(&queue)) {
+                queue.extend(new_rules);
+            }
+            final_rules.push(rule);
+        } else {
+            println!(" Blacklisting because low confidence");
+            blacklist.push(rule);
+        }
+    }
+
+    final_rules
 }
 
 #[cfg(test)]
@@ -735,6 +880,42 @@ mod tests {
         ];
         let y = join_step(&mut itemsets);
         println!("{:?}", y);
+    }
+
+    #[test]
+    fn mains() {
+        let counter: FrequentItemsets = hashmap! {
+            1 => hashmap! {
+                vec![1] => 9,
+                vec![2] => 8,
+                vec![3] => 12,
+                vec![4] => 13,
+            },
+            2 => hashmap! {
+                vec![1, 2] => 4,
+                vec![1, 3] => 5,
+                vec![1, 4] => 6,
+                vec![2, 3] => 3,
+                vec![2, 4] => 5,
+                vec![3, 4] => 3,
+            },
+            3 => hashmap! {
+                vec![1, 2, 3] => 3,
+                vec![1, 2, 4] => 3,
+                vec![1, 3, 4] => 3,
+                vec![2, 3, 4] => 3,
+            },
+            4 => hashmap! {
+                vec![1, 2, 3, 4] => 2,
+            },
+        };
+        let min_conf = 0.8;
+
+        let assoc_rules = generate_rules(&min_conf, &counter);
+
+        for r in &assoc_rules {
+            println!("{}", r);
+        }
     }
 }
 
