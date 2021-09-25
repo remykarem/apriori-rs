@@ -154,17 +154,6 @@ pub fn join_step(itemsets: &mut [Itemset]) -> Vec<Itemset> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use maplit::hashmap;
-
-    macro_rules! hashset {
-        ($($x:expr),*) => {
-            {
-                let mut set: HashSet<_> = HashSet::new();
-                $(set.insert($x);)*
-                set
-            }
-        };
-    }
 
     #[test]
     fn test_join_step() {

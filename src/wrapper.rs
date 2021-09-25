@@ -3,6 +3,7 @@ use crate::types::FrequentItemsets;
 use crate::Rule;
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyFrozenSet};
+use std::cmp::Ordering::Equal;
 
 macro_rules! pyfrozenset {
     ($py:expr,$x:expr) => {{
@@ -30,12 +31,14 @@ pub fn convert_itemset_counts(itemset_counts: FrequentItemsets) -> Py<PyDict> {
 }
 
 pub fn convert_rules(rules: Vec<rules::Rule>) -> Vec<Rule> {
-    rules
+    let mut pyrules: Vec<Rule> = rules
         .into_iter()
         .map(|x| Rule {
             antecedent: x.get_antecedent().iter().copied().collect(),
             consequent: x.get_consequent().iter().copied().collect(),
             confidence: x.confidence,
         })
-        .collect()
+        .collect();
+    pyrules.sort_by(|a, b| (-a.confidence).partial_cmp(&-b.confidence).unwrap_or(Equal));
+    pyrules
 }

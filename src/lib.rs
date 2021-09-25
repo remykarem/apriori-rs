@@ -83,7 +83,7 @@ pub struct Rule {
 impl PyObjectProtocol for Rule {
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!(
-            "Rule <{:?} => {:?}> | conf: {:.3}",
+            "Rule {:?} => {:?} | conf: {:.3}",
             &self.antecedent, &self.consequent, &self.confidence
         ))
     }
@@ -101,7 +101,7 @@ impl Rule {
             ante.insert(inventory[item_id]);
         });
         let mut conseq = HashSet::new();
-        self.antecedent.iter().for_each(|item_id| {
+        self.consequent.iter().for_each(|item_id| {
             conseq.insert(inventory[item_id]);
         });
         Ok((ante, conseq, self.confidence))
