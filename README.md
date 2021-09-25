@@ -2,7 +2,20 @@
 
 For educational purpose again =)
 
-Python:
+## Installation
+
+```sh
+pip install git+https://github.com/remykarem/apriori.git
+
+```
+
+To compile the module yourself,
+
+```sh
+cargo rustc --release -- -C link-arg=-undefined -C link-arg=dynamic_lookup && mv target/release/libapriori.dylib ./apriori.so
+```
+
+## Usage
 
 ```python
 >>> from apriori import apriori
@@ -14,11 +27,9 @@ Python:
 ...    set(["milk", "cheese", "bread"]),
 ...    set(["milk", "cheese", "yoghurt"]),
 ...    set(["milk", "bread"])]
->>> rules, inventory = apriori(transactions, min_support=0.3, min_confidence=0.2, max_len=3)
+>>> rules, itemsets = apriori(transactions, min_support=0.3, min_confidence=0.2, max_len=3)
 ```
 
-Building
+## Resources / references
 
-```sh
-cargo rustc --release -- -C link-arg=-undefined -C link-arg=dynamic_lookup && mv target/release/libapriori.dylib ./apriori.so
-```
+* https://github.com/tommyod/Efficient-Apriori
