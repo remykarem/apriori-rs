@@ -35,14 +35,14 @@ fn bfs(combi: &[ItemId], &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rul
     let rules = Rule::from_pattern(combi);
     queue.extend(rules);
 
-    while let Some(rule) = queue.pop_front() {
+    while let Some(mut rule) = queue.pop_front() {
         if rule.is_a_child_of_a_blacklisted_rule(&blacklist) {
             continue;
         }
 
-        let confidence = rule.compute_confidence(counter, combi);
+        rule.compute_confidence(counter, combi);
 
-        if confidence >= min_conf {
+        if rule.confidence >= min_conf {
             if let Some(new_rules) = rule.create_children(&blacklist, Some(&queue)) {
                 queue.extend(new_rules);
             }
@@ -59,6 +59,7 @@ fn bfs(combi: &[ItemId], &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rul
 pub struct Rule {
     pub split: usize,
     pub combi: Vec<ItemId>,
+    pub confidence: f32,
 }
 
 impl Rule {
@@ -66,6 +67,7 @@ impl Rule {
         let mother = Rule {
             split: pattern.len(),
             combi: pattern.iter().copied().collect(),
+            confidence: 0.0,
         };
         mother.create_children(&[], None).unwrap()
     }
@@ -95,6 +97,7 @@ impl Rule {
             let rule = Self {
                 split: new_split,
                 combi,
+                confidence: 0.0,
             };
 
             if rule.is_going_to_be_created(to_create) {
@@ -141,11 +144,11 @@ impl Rule {
         let conseq = self.get_consequent();
         parent.get_consequent().iter().all(|x| conseq.contains(x))
     }
-    fn compute_confidence(&self, counter: &FrequentItemsets, combi: &[ItemId]) -> f32 {
+    fn compute_confidence(&mut self, counter: &FrequentItemsets, combi: &[ItemId]) {
         let antecedent_support =
             counter[&self.get_antecedent().len()][self.get_antecedent()] as f32;
         let union_support = counter[&self.combi.len()][combi] as f32;
-        union_support / antecedent_support
+        self.confidence = union_support / antecedent_support;
     }
 }
 
@@ -213,10 +216,12 @@ mod test {
         let rule1 = Rule {
             split: 2,
             combi: vec![1, 2, 3, 5],
+            confidence: 0.0,
         };
         let rule2 = Rule {
             split: 2,
             combi: vec![1, 2, 3, 5],
+            confidence: 0.0,
         };
         assert!(rule1 == rule2);
     }
@@ -225,10 +230,12 @@ mod test {
         let rule1 = Rule {
             split: 2,
             combi: vec![1, 2, 3, 5],
+            confidence: 0.0,
         };
         let rule2 = Rule {
             split: 2,
             combi: vec![9, 10, 3, 5],
+            confidence: 0.0,
         };
         assert!(rule1 == rule2);
     }
@@ -237,10 +244,12 @@ mod test {
         let rule1 = Rule {
             split: 2,
             combi: vec![1, 2, 3, 5],
+            confidence: 0.0,
         };
         let rule2 = Rule {
             split: 2,
             combi: vec![9, 10, 5],
+            confidence: 0.0,
         };
         assert!(rule1 != rule2);
     }
@@ -249,10 +258,12 @@ mod test {
         let rules = VecDeque::from(vec![Rule {
             split: 3,
             combi: vec![1, 3, 4, 2],
+            confidence: 0.0,
         }]);
         let rule = Rule {
             split: 2,
             combi: vec![3, 5, 1, 2],
+            confidence: 0.0,
         };
         assert!(!rules.contains(&rule));
     }
@@ -262,6 +273,7 @@ mod test {
         let rule = Rule {
             split: 4,
             combi: vec![1, 2, 3, 4, 5],
+            confidence: 0.0,
         };
         let mut children = rule.create_children(&[], None).unwrap();
         let child = children.pop().unwrap();
@@ -286,6 +298,7 @@ mod test {
                 1, 2, 3, 4, // ante
                 5, // conseq
             ],
+            confidence: 0.0,
         };
         let child = Rule {
             split: 3,
@@ -293,6 +306,7 @@ mod test {
                 1, 2, 3, // ante
                 4, 5, //conseq
             ],
+            confidence: 0.0,
         };
         assert!(child.is_child_of(&parent));
     }

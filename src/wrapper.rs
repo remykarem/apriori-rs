@@ -35,6 +35,7 @@ pub fn convert_rules(rules: Vec<rules::Rule>) -> Vec<Rule> {
         .map(|x| Rule {
             antecedent: x.get_antecedent().iter().copied().collect(),
             consequent: x.get_consequent().iter().copied().collect(),
+            confidence: x.confidence,
         })
         .collect()
 }

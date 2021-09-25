@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 use crate::{
     combi::join_step,
     types::{

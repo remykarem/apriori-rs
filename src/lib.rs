@@ -1,4 +1,4 @@
-#![allow(non_snake_case)]
+#![allow(dead_code)]
 mod combi;
 mod itemset;
 mod rules;
@@ -75,11 +75,16 @@ pub struct Rule {
     antecedent: HashSet<ItemId>,
     #[pyo3(get)]
     consequent: HashSet<ItemId>,
+    #[pyo3(get)]
+    confidence: f32,
 }
 
 #[pyproto]
 impl PyObjectProtocol for Rule {
     fn __repr__(&self) -> PyResult<String> {
-        Ok(format!("{:?} => {:?}", &self.antecedent, &self.consequent))
+        Ok(format!(
+            "{:?} => {:?} | conf: {}",
+            &self.antecedent, &self.consequent, &self.confidence
+        ))
     }
 }
