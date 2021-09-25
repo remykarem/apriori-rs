@@ -5,6 +5,7 @@ use std::{
 
 use crate::types::{FrequentItemsets, ItemId, Itemset};
 
+/// Generate rules based on frequent itemsets
 pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
     counter
         .iter()

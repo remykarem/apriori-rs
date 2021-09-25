@@ -9,6 +9,7 @@ use crate::{
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
+/// Generate frequent itemsets from a list of transactions.
 pub fn generate_frequent_itemsets(
     raw_transactions: Vec<RawTransaction>,
     min_support: f32,

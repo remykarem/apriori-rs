@@ -4,12 +4,19 @@ For educational purpose again =)
 
 ## Installation
 
-```sh
-pip install git+https://github.com/remykarem/apriori.git
+First install Rust
 
+```sh
+curl https://sh.rustup.rs -sSf | sh -s -- -y
 ```
 
-To compile the module yourself,
+then install the package
+
+```sh
+pip install git+https://github.com/remykarem/apriori-rs.git
+```
+
+To compile the module yourself (macOS),
 
 ```sh
 cargo rustc --release -- -C link-arg=-undefined -C link-arg=dynamic_lookup && mv target/release/libapriori.dylib ./apriori.so

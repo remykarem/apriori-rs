@@ -1,8 +1,8 @@
 #![allow(dead_code)]
-mod combi;
-mod itemset;
-mod rules;
-mod types;
+pub mod combi;
+pub mod itemset;
+pub mod rules;
+pub mod types;
 mod wrapper;
 
 use pyo3::wrap_pyfunction;
