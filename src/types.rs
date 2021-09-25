@@ -1,7 +1,10 @@
+use pyo3::{Py, types::PyDict};
+
 use crate::{HashMap,HashSet};
 
 pub type ItemId = usize;
 pub type ItemName<'l> = &'l str;
+pub type PyItemName = String;
 pub type Itemset = Vec<ItemId>;
 
 pub type ReverseLookup<'l> = HashMap<ItemName<'l>, ItemId>;
@@ -14,3 +17,4 @@ pub type ItemCounts = HashMap<ItemId, u32>;
 pub type ItemsetCounts = HashMap<Itemset, u32>;
 
 pub type FrequentItemsets = HashMap<usize, ItemsetCounts>;
+pub type PyFrequentItemsets = Py<PyDict>;

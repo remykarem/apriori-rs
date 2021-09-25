@@ -5,11 +5,10 @@ mod rules;
 mod types;
 mod wrapper;
 
-use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, PyObjectProtocol};
 use std::collections::{HashMap, HashSet};
-use types::{Inventory, ItemId, ItemName, RawTransaction};
+use types::{Inventory, PyFrequentItemsets, PyItemName, RawTransaction};
 
 fn main() {
     #[pymodule]
@@ -30,7 +29,7 @@ fn main() {
 ///     max_len: Maximum no. of items in an association rule.
 ///
 /// Returns:
-///     A list of association rules.
+///     A tuple of (i) a list of association rules and (ii) frequent itemsets by size.
 #[pyfunction]
 #[pyo3(text_signature = "(/, *, transactions, min_support, min_confidence, max_len)")]
 fn apriori(
@@ -38,13 +37,16 @@ fn apriori(
     min_support: f32,
     min_confidence: f32,
     max_len: usize,
-) -> (Vec<Rule>, Inventory) {
+) -> (Vec<Rule>, PyFrequentItemsets) {
     let (itemset_counts, inventory) =
         itemset::generate_frequent_itemsets(raw_transactions, min_support, max_len);
 
     let rules = rules::generate_rules(&min_confidence, &itemset_counts);
 
-    (wrapper::convert_rules(rules), inventory)
+    (
+        wrapper::convert_rules(rules, inventory),
+        wrapper::convert_itemset_counts(itemset_counts),
+    )
 }
 
 /// Generate frequent itemsets from a list of transactions.
@@ -55,14 +57,14 @@ fn apriori(
 ///     max_len: Maximum no. of items in an association rule.
 ///
 /// Returns:
-///     A list of association rules.
+///     A tuple of (i) frequent itemsets by size and (ii) a dictionary mapping of item ID to item name.
 #[pyfunction]
 #[pyo3(text_signature = "(/, *, transactions, min_support, max_len)")]
 fn generate_frequent_itemsets(
     raw_transactions: Vec<RawTransaction>,
     min_support: f32,
     max_length: usize,
-) -> (Py<PyDict>, Inventory) {
+) -> (PyFrequentItemsets, Inventory) {
     let (itemset_counts, inventory) =
         itemset::generate_frequent_itemsets(raw_transactions, min_support, max_length);
 
@@ -72,9 +74,9 @@ fn generate_frequent_itemsets(
 #[pyclass]
 pub struct Rule {
     #[pyo3(get)]
-    antecedent: HashSet<ItemId>,
+    antecedent: HashSet<PyItemName>,
     #[pyo3(get)]
-    consequent: HashSet<ItemId>,
+    consequent: HashSet<PyItemName>,
     #[pyo3(get)]
     confidence: f32,
 }
@@ -86,24 +88,5 @@ impl PyObjectProtocol for Rule {
             "Rule {:?} => {:?} | conf: {:.3}",
             &self.antecedent, &self.consequent, &self.confidence
         ))
-    }
-}
-
-#[pymethods]
-impl Rule {
-    fn to_named<'inventory>(
-        &'inventory self,
-        _py: Python,
-        inventory: HashMap<ItemId, ItemName<'inventory>>,
-    ) -> PyResult<(HashSet<ItemName>, HashSet<ItemName>, f32)> {
-        let mut ante = HashSet::new();
-        self.antecedent.iter().for_each(|item_id| {
-            ante.insert(inventory[item_id]);
-        });
-        let mut conseq = HashSet::new();
-        self.consequent.iter().for_each(|item_id| {
-            conseq.insert(inventory[item_id]);
-        });
-        Ok((ante, conseq, self.confidence))
     }
 }

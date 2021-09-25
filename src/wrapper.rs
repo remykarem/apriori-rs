@@ -1,5 +1,5 @@
 use crate::rules;
-use crate::types::FrequentItemsets;
+use crate::types::{FrequentItemsets, Inventory};
 use crate::Rule;
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyFrozenSet};
@@ -30,12 +30,20 @@ pub fn convert_itemset_counts(itemset_counts: FrequentItemsets) -> Py<PyDict> {
     })
 }
 
-pub fn convert_rules(rules: Vec<rules::Rule>) -> Vec<Rule> {
+pub fn convert_rules(rules: Vec<rules::Rule>, inventory: Inventory) -> Vec<Rule> {
     let mut pyrules: Vec<Rule> = rules
         .into_iter()
         .map(|x| Rule {
-            antecedent: x.get_antecedent().iter().copied().collect(),
-            consequent: x.get_consequent().iter().copied().collect(),
+            antecedent: x
+                .get_antecedent()
+                .iter()
+                .map(|item_id| String::from(inventory[item_id]))
+                .collect(),
+            consequent: x
+                .get_consequent()
+                .iter()
+                .map(|item_id| String::from(inventory[item_id]))
+                .collect(),
             confidence: x.confidence,
         })
         .collect();
