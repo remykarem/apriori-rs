@@ -9,7 +9,7 @@ use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, PyObjectProtocol};
 use std::collections::{HashMap, HashSet};
-use types::{Inventory, ItemId, RawTransaction};
+use types::{Inventory, ItemId, ItemName, RawTransaction};
 
 fn main() {
     #[pymodule]
@@ -83,8 +83,27 @@ pub struct Rule {
 impl PyObjectProtocol for Rule {
     fn __repr__(&self) -> PyResult<String> {
         Ok(format!(
-            "{:?} => {:?} | conf: {}",
+            "Rule <{:?} => {:?}> | conf: {:.3}",
             &self.antecedent, &self.consequent, &self.confidence
         ))
+    }
+}
+
+#[pymethods]
+impl Rule {
+    fn to_named<'inventory>(
+        &'inventory self,
+        _py: Python,
+        inventory: HashMap<ItemId, ItemName<'inventory>>,
+    ) -> PyResult<(HashSet<ItemName>, HashSet<ItemName>, f32)> {
+        let mut ante = HashSet::new();
+        self.antecedent.iter().for_each(|item_id| {
+            ante.insert(inventory[item_id]);
+        });
+        let mut conseq = HashSet::new();
+        self.antecedent.iter().for_each(|item_id| {
+            conseq.insert(inventory[item_id]);
+        });
+        Ok((ante, conseq, self.confidence))
     }
 }
