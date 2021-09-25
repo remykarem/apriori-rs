@@ -3,7 +3,7 @@ use std::{
     fmt::{Display, Formatter, Result},
 };
 
-use crate::types::{FrequentItemsets, Itemset};
+use crate::types::{FrequentItemsets, ItemId, Itemset};
 
 pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
     counter
@@ -19,7 +19,7 @@ pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
             itemset_counts
                 .iter()
                 .flat_map(|(combi, _)| {
-                    let combi = combi.iter().copied().collect();
+                    let combi: Itemset = combi.iter().copied().collect();
                     bfs(&combi, min_conf, counter)
                 })
                 .collect::<Vec<Rule>>()
@@ -27,21 +27,16 @@ pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
         .collect()
 }
 
-fn bfs(combi: &Itemset, &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
+fn bfs(combi: &[ItemId], &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
     let mut queue: VecDeque<Rule> = VecDeque::new();
-    let rules = Rule::from_pattern(combi);
-    queue.extend(rules);
     let mut blacklist = vec![];
     let mut final_rules = vec![];
+    
+    let rules = Rule::from_pattern(combi);
+    queue.extend(rules);
 
     while let Some(rule) = queue.pop_front() {
-        println!("Analysing rule: {}", &rule);
-
         if rule.is_a_child_of_a_blacklisted_rule(&blacklist) {
-            println!(
-                " Skipping {} because it's a child of a blacklisted rule",
-                &rule
-            );
             continue;
         }
 
@@ -53,7 +48,6 @@ fn bfs(combi: &Itemset, &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule
             }
             final_rules.push(rule);
         } else {
-            println!(" Blacklisting because low confidence");
             blacklist.push(rule);
         }
     }
@@ -64,11 +58,11 @@ fn bfs(combi: &Itemset, &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule
 #[derive(Debug)]
 pub struct Rule {
     pub split: usize,
-    pub combi: Vec<usize>,
+    pub combi: Vec<ItemId>,
 }
 
 impl Rule {
-    fn from_pattern(pattern: &Vec<usize>) -> Vec<Rule> {
+    fn from_pattern(pattern: &[ItemId]) -> Vec<Rule> {
         let mother = Rule {
             split: pattern.len(),
             combi: pattern.iter().copied().collect(),
@@ -104,17 +98,10 @@ impl Rule {
             };
 
             if rule.is_going_to_be_created(to_create) {
-                println!(" Skipping {} because it's queued to be created", &rule);
                 continue;
             }
 
-            if rule.is_a_child_of_a_blacklisted_rule(blacklist) {
-                println!(
-                    " Skipping {} because it's a child of a blacklisted rule",
-                    &rule
-                );
-            } else {
-                println!(" Creating {}", rule);
+            if !rule.is_a_child_of_a_blacklisted_rule(blacklist) {
                 rules.push(rule);
             }
         }
@@ -137,10 +124,10 @@ impl Rule {
             .any(|blacklisted_rule| self.is_child_of(blacklisted_rule))
     }
 
-    fn get_antecedent(&self) -> &[usize] {
+    pub fn get_antecedent(&self) -> &[ItemId] {
         &self.combi[..self.split]
     }
-    fn get_consequent(&self) -> &[usize] {
+    pub fn get_consequent(&self) -> &[ItemId] {
         &self.combi[self.split..]
     }
     fn is_child_of(&self, parent: &Self) -> bool {
@@ -154,10 +141,9 @@ impl Rule {
         let conseq = self.get_consequent();
         parent.get_consequent().iter().all(|x| conseq.contains(x))
     }
-    fn compute_confidence(&self, counter: &FrequentItemsets, combi: &Itemset) -> f32 {
+    fn compute_confidence(&self, counter: &FrequentItemsets, combi: &[ItemId]) -> f32 {
         let antecedent_support =
             counter[&self.get_antecedent().len()][self.get_antecedent()] as f32;
-        // todo
         let union_support = counter[&self.combi.len()][combi] as f32;
         union_support / antecedent_support
     }
