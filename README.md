@@ -27,9 +27,26 @@ cargo rustc --release -- -C link-arg=-undefined -C link-arg=dynamic_lookup && mv
 ...    set(["milk", "cheese", "bread"]),
 ...    set(["milk", "cheese", "yoghurt"]),
 ...    set(["milk", "bread"])]
->>> rules, itemsets = apriori(transactions, min_support=0.3, min_confidence=0.2, max_len=3)
+
+>>> rules, _ = apriori(transactions, min_support=0.3, min_confidence=0.2, max_len=3)
+```
+
+```python
+>>> rules
+[{"cheese", "bread"} -> {"milk"},
+ {"cheese"} -> {"milk"},
+ {"bread"} -> {"milk"},
+ {"milk"} -> {"bread"},
+ {"milk", "cheese"} -> {"bread"},
+ {"cheese"} -> {"bread", "milk"},
+ {"cheese"} -> {"bread"},
+ {"milk"} -> {"cheese"},
+ {"bread", "milk"} -> {"cheese"},
+ {"bread"} -> {"milk", "cheese"},
+ {"bread"} -> {"cheese"},
+ {"milk"} -> {"cheese", "bread"}]
 ```
 
 ## Resources / references
 
-* https://github.com/tommyod/Efficient-Apriori
+- https://github.com/tommyod/Efficient-Apriori

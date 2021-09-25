@@ -84,9 +84,6 @@ pub struct Rule {
 #[pyproto]
 impl PyObjectProtocol for Rule {
     fn __repr__(&self) -> PyResult<String> {
-        Ok(format!(
-            "Rule {:?} => {:?} | conf: {:.3}",
-            &self.antecedent, &self.consequent, &self.confidence
-        ))
+        Ok(format!("{:?} -> {:?}", &self.antecedent, &self.consequent))
     }
 }
