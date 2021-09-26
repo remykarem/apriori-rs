@@ -1,24 +1,33 @@
 use itertools::Itertools;
 
-use crate::types::Itemset;
+use crate::types::{ItemId, Itemset};
 
 // type FrequentItemset = Itemset;
 // type NonfrequentItemset = Itemset;
 
 /// https://github.com/tommyod/Efficient-Apriori/blob/master/efficient_apriori/itemsets.py
 pub fn join_step(itemsets: &mut [Itemset]) -> Vec<Itemset> {
-    let mut final_itemsets: Vec<Itemset> = vec![];
+
+    if itemsets.is_empty() {
+        return vec![];
+    }
 
     itemsets.sort_unstable();
+    
+    let mut final_itemsets: Vec<Itemset> = Vec::with_capacity(1024); // arbitrary
+    let mut itemset_first_tuple: Itemset = Vec::with_capacity(itemsets[0].len()+1);
+    let mut tail_items: Vec<ItemId> = Vec::with_capacity(itemsets.len()); // based on analysis of the first for loop
 
     let mut i = 0;
     while i < itemsets.len() {
+
         let mut skip = 1;
 
         let (itemset_first, itemset_last) = itemsets[i].split_at(itemsets[i].len() - 1);
         let itemset_last = itemset_last.to_owned().pop().unwrap();
 
-        let mut tail_items: Itemset = vec![itemset_last];
+        tail_items.clear();
+        tail_items.push(itemset_last);
 
         for j in (i + 1)..itemsets.len() {
             let (itemset_n_first, itemset_n_last) = itemsets[j].split_at(itemsets[j].len() - 1);
@@ -33,7 +42,8 @@ pub fn join_step(itemsets: &mut [Itemset]) -> Vec<Itemset> {
         }
 
         for combi in tail_items.iter().combinations(2).sorted() {
-            let mut itemset_first_tuple = itemset_first.to_owned();
+            itemset_first_tuple.clear();
+            itemset_first_tuple.extend(itemset_first);
             let (a, b) = combi.split_at(1);
             let a = *a.to_owned().pop().unwrap();
             let b = *b.to_owned().pop().unwrap();

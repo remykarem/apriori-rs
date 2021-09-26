@@ -15,8 +15,8 @@ pub fn generate_frequent_itemsets(
     min_support: f32,
     k: usize,
 ) -> (FrequentItemsets, Inventory) {
-    let mut all_frequent_itemsets: FrequentItemsets = HashMap::new();
-    let mut nonfrequent: Vec<Itemset> = vec![];
+    let mut all_frequent_itemsets: FrequentItemsets = HashMap::with_capacity(k);
+    let mut nonfrequent: Vec<Itemset> = Vec::with_capacity(1024); // arbitrary
 
     // Generate 1-itemset (separated because of possible optimisation opportunity
     // using a simpler hashmapkey type)
@@ -87,7 +87,7 @@ fn generate_candidates_from_prev(
     target_size: usize,
     nonfrequent: &[Itemset],
 ) -> ItemsetCounts {
-    let mut next_itemset_counts: ItemsetCounts = HashMap::new();
+    let mut next_itemset_counts: ItemsetCounts = HashMap::with_capacity(prev_frequent_itemsets.len());
 
     if target_size < 3 {
         let mut unique_items: HashSet<ItemId> = HashSet::new();
@@ -148,16 +148,20 @@ fn generate_frequent_item_counts(
     min_support: f32,
 ) -> (ItemCounts, Inventory, Vec<Transaction>) {
     let N = raw_transactions.len() as f32;
-    let mut reverse_lookup: ReverseLookup = HashMap::new();
-    let mut inventory: Inventory = HashMap::new();
+    let approx_num_unique_items = 1024; // arbitrary
+    let approx_num_items_in_transaction = 16;
+    let mut reverse_lookup: ReverseLookup = HashMap::with_capacity(approx_num_unique_items);
+    let mut inventory: Inventory = HashMap::with_capacity(approx_num_unique_items);
     let mut last_item_id = 0;
-    let mut item_counts = HashMap::new();
+    let mut item_counts = HashMap::with_capacity(approx_num_unique_items);
+
+    let mut items = Vec::with_capacity(approx_num_items_in_transaction);
 
     // Update counts
     let transactions_new: Vec<Transaction> = raw_transactions
         .iter()
         .map(|raw_transaction| {
-            let mut items = Vec::new();
+            items.clear();
 
             for &item in raw_transaction {
                 let item_id: usize;
@@ -179,7 +183,7 @@ fn generate_frequent_item_counts(
 
             items.sort_unstable();
 
-            items
+            items.to_owned()
         })
         .collect();
 
