@@ -9,6 +9,7 @@ name = "apriori"
 crate-type = ["cdylib"]
 
 [dependencies]
+bitvec = "0.22.3"
 itertools = "0.10.1"
 
 [dev-dependencies]

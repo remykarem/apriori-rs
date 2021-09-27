@@ -1,10 +1,13 @@
 #![allow(dead_code)]
 pub mod combi;
 pub mod itemset;
+mod pcy;
 pub mod rules;
 pub mod types;
 mod wrapper;
 
+use pcy::__pyo3_get_function_pcy;
+use itemset::__pyo3_get_function_generate_frequent_item_counts;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, PyObjectProtocol};
 use std::collections::{HashMap, HashSet};
@@ -15,6 +18,8 @@ fn main() {
     fn apriori(_: Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(apriori, m)?)?;
         m.add_function(wrap_pyfunction!(generate_frequent_itemsets, m)?)?;
+        m.add_function(wrap_pyfunction!(generate_frequent_item_counts, m)?)?;
+        m.add_function(wrap_pyfunction!(pcy, m)?)?;
         m.add_class::<Rule>()?;
         Ok(())
     }

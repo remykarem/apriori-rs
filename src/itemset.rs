@@ -7,6 +7,7 @@ use crate::{
     },
 };
 use itertools::Itertools;
+use pyo3::prelude::pyfunction;
 use std::collections::{HashMap, HashSet};
 
 /// Generate frequent itemsets from a list of transactions.
@@ -143,7 +144,8 @@ fn convert_to_itemset_counts(item_counts: ItemCounts) -> ItemsetCounts {
 
 /// 1-itemset
 /// space: O(2n)
-fn generate_frequent_item_counts(
+#[pyfunction]
+pub fn generate_frequent_item_counts(
     raw_transactions: Vec<HashSet<&str>>,
     min_support: f32,
 ) -> (ItemCounts, Inventory, Vec<Transaction>) {
