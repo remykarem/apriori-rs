@@ -8,6 +8,7 @@ use crate::{
 };
 use itertools::Itertools;
 use pyo3::prelude::pyfunction;
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
 /// Generate frequent itemsets from a list of transactions.
@@ -18,29 +19,61 @@ pub fn generate_frequent_itemsets(
 ) -> (FrequentItemsets, Inventory) {
     let mut all_frequent_itemsets: FrequentItemsets = HashMap::with_capacity(k);
     let mut nonfrequent: Vec<Itemset> = Vec::with_capacity(1024); // arbitrary
+    let N = raw_transactions.len() as f32;
+    let min_support_count = (min_support * N).ceil() as usize;
 
-    // Generate 1-itemset (separated because of possible optimisation opportunity
-    // using a simpler hashmapkey type)
-    let (item_counts, inventory, transactions_new) =
+    // 1-itemset
+    let (item_counts, inventory, mut transactions_new) =
         generate_frequent_item_counts(raw_transactions, min_support);
-    let counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
-    all_frequent_itemsets.insert(1, counts);
 
-    // Generate k-itemset, k>1
-    for size in 2..=k {
+    // 2-itemset
+    if k == 1 {
+        let counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
+        all_frequent_itemsets.insert(1, counts);
+    } else {
+        transactions_new.retain(|transaction| transaction.len() >= 2);
+        let candidates = item_counts.keys().combinations(2);
+        let two_itemset_counts: HashMap<Itemset, u32> = candidates
+            .par_bridge()
+            .into_par_iter()
+            .filter_map(|candidate| {
+                let candidate_count = transactions_new
+                    .par_iter()
+                    .filter(|transaction| candidate.iter().all(|item| transaction.contains(item)))
+                    .count();
+                if candidate_count >= min_support_count {
+                    let mut freq: Itemset = candidate.iter().map(|x| **x).collect();
+                    freq.sort_unstable();
+                    Some((freq, candidate_count as u32))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // insert
+        let counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
+        all_frequent_itemsets.insert(1, counts);
+        all_frequent_itemsets.insert(2, two_itemset_counts);
+    }
+
+    // k-itemset, k>1
+    for size in 3..=k {
+
+        transactions_new.retain(|transaction| transaction.len() >= size);
+
         let prev_frequent_itemsets = &all_frequent_itemsets[&(size - 1_usize)];
-        let mut candidates: ItemsetCounts =
+        let candidates: ItemsetCounts =
             generate_candidates_from_prev(prev_frequent_itemsets, size, &nonfrequent);
 
-        update_counts_with_transactions(
-            &mut candidates,
+        let frequent_itemsets = update_counts_with_transactions(
+            &candidates,
             &transactions_new,
             min_support,
+            min_support_count,
             size,
             &mut nonfrequent,
         );
-        let frequent_itemsets: ItemsetCounts = candidates;
-
         all_frequent_itemsets.insert(size, frequent_itemsets);
     }
 
@@ -49,38 +82,33 @@ pub fn generate_frequent_itemsets(
 
 /// includes pruning
 fn update_counts_with_transactions(
-    candidate_counts: &mut ItemsetCounts,
+    candidate_counts: &ItemsetCounts,
     transactions: &[Transaction],
     min_support: f32,
+    min_support_count: usize,
     size: usize,
     nonfrequent: &mut Vec<Itemset>,
-) {
-    let N = transactions.len() as f32;
-    let min_support_count = (min_support * N).ceil() as u32;
+) -> HashMap<Itemset, u32> {
+    // let N = transactions.len() as f32;
+    // let min_support_count = (min_support * N).ceil() as usize;
 
-    transactions
-        .iter()
-        .filter(|transaction| transaction.len() >= size)
-        .for_each(|transaction| {
-            for (candidate, count) in candidate_counts.iter_mut() {
-                if candidate.iter().all(|item| transaction.contains(item)) {
-                    *count += 1;
-                }
+    let candidates = candidate_counts.keys().par_bridge();
+    let next_item_counts: HashMap<Itemset, u32> = candidates
+        .into_par_iter()
+        .filter_map(|candidate| {
+            let candidate_count = transactions
+                .par_iter()
+                .filter(|transaction| candidate.iter().all(|item| transaction.contains(item)))
+                .count();
+            if candidate_count >= min_support_count {
+                Some((candidate.iter().copied().collect(), candidate_count as u32))
+            } else {
+                None
             }
-        });
+        })
+        .collect();
 
-    if size == 2 {
-        candidate_counts
-            .iter()
-            .for_each(|(candidate, &support_count)| {
-                if support_count < min_support_count {
-                    nonfrequent.push(candidate.to_owned());
-                }
-            });
-        candidate_counts.retain(|_, &mut support_count| support_count >= min_support_count);
-    } else {
-        candidate_counts.retain(|_, &mut support_count| support_count >= min_support_count);
-    }
+    next_item_counts
 }
 
 /// target k
@@ -89,51 +117,14 @@ fn generate_candidates_from_prev(
     target_size: usize,
     nonfrequent: &[Itemset],
 ) -> ItemsetCounts {
-    let mut next_itemset_counts: ItemsetCounts = HashMap::with_capacity(prev_frequent_itemsets.len());
+    let mut next_itemset_counts: ItemsetCounts =
+        HashMap::with_capacity(prev_frequent_itemsets.len());
 
-    if target_size < 3 {
-        let mut unique_items: HashSet<ItemId> = HashSet::new();
-        for (itemset, _) in prev_frequent_itemsets.iter() {
-            for &item in itemset.iter() {
-                unique_items.insert(item);
-            }
-        }
-        let combinations = unique_items.iter().combinations(target_size);
+    let mut curr: Vec<Itemset> = prev_frequent_itemsets.keys().cloned().collect();
+    let combinations = join_step(&mut curr);
 
-        'combi: for mut combi in combinations.into_iter() {
-            combi.sort_unstable();
-
-            for nonfreq in nonfrequent.iter() {
-                if nonfreq.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
-                    continue 'combi;
-                }
-            }
-            // for prev_itemset in prev_frequent_itemsets.keys() {
-            //     if prev_itemset.iter().zip(combi.iter()).all(|(x, &y)| x == y) {
-            next_itemset_counts.insert(combi.iter().map(|x| **x).collect(), 0);
-            //         num_combis += 1;
-            //         continue 'combi;
-            //     }
-            // }
-        }
-    } else {
-        let mut curr: Vec<Itemset> = prev_frequent_itemsets.keys().cloned().collect();
-        let combinations = join_step(&mut curr);
-
-        'combi1: for combi in combinations.into_iter() {
-            for nonfreq in nonfrequent.iter() {
-                if nonfreq.iter().zip(combi.iter()).all(|(x, y)| x == y) {
-                    continue 'combi1;
-                }
-            }
-            // for prev_itemset in prev_frequent_itemsets.keys() {
-            //     if prev_itemset.iter().zip(combi.iter()).all(|(x, y)| x == y) {
-            next_itemset_counts.insert(combi.iter().copied().collect(), 0);
-            //         num_combis += 1;
-            //         continue 'combi1;
-            //     }
-            // }
-        }
+    for combi in combinations.into_iter() {
+        next_itemset_counts.insert(combi.iter().copied().collect(), 0);
     }
 
     next_itemset_counts
