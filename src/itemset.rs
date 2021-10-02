@@ -56,6 +56,7 @@ fn update_counts_with_transactions(
     nonfrequent: &mut Vec<Itemset>,
 ) {
     let N = transactions.len() as f32;
+    let min_support_count = (min_support * N).ceil() as u32;
 
     transactions
         .iter()
@@ -72,13 +73,13 @@ fn update_counts_with_transactions(
         candidate_counts
             .iter()
             .for_each(|(candidate, &support_count)| {
-                if (support_count as f32 / N) < min_support {
+                if support_count < min_support_count {
                     nonfrequent.push(candidate.to_owned());
                 }
             });
-        candidate_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
+        candidate_counts.retain(|_, &mut support_count| support_count >= min_support_count);
     } else {
-        candidate_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
+        candidate_counts.retain(|_, &mut support_count| support_count >= min_support_count);
     }
 }
 
@@ -158,6 +159,7 @@ pub fn generate_frequent_item_counts(
     let mut item_counts = HashMap::with_capacity(approx_num_unique_items);
 
     let mut items = Vec::with_capacity(approx_num_items_in_transaction);
+    let min_support_count = (min_support * N).ceil() as u32;
 
     // Update counts
     let transactions_new: Vec<Transaction> = raw_transactions
@@ -190,7 +192,7 @@ pub fn generate_frequent_item_counts(
         .collect();
 
     // Prune
-    item_counts.retain(|_, &mut support_count| (support_count as f32 / N) >= min_support);
+    item_counts.retain(|_, &mut support_count| support_count >= min_support_count);
 
     (item_counts, inventory, transactions_new)
 }
