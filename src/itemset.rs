@@ -6,10 +6,10 @@ use crate::{
         ReverseLookup, Transaction,
     },
 };
-use itertools::Itertools;
+use itertools::{Combinations, Itertools};
 use pyo3::prelude::pyfunction;
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::Keys, HashMap, HashSet};
 
 /// Generate frequent itemsets from a list of transactions.
 pub fn generate_frequent_itemsets(
@@ -22,70 +22,69 @@ pub fn generate_frequent_itemsets(
     let min_support_count = (min_support * N).ceil() as usize;
 
     // 1-itemset
-    let (item_counts, inventory, mut transactions_new) =
+    let (item_counts, inventory, mut transactions) =
         generate_frequent_item_counts(raw_transactions, min_support);
 
     // 2-itemset
     if k == 1 {
-        let counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
-        all_frequent_itemsets.insert(1, counts);
+        let frequent_1_itemset_counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
+        all_frequent_itemsets.insert(1, frequent_1_itemset_counts);
     } else {
-        transactions_new.retain(|transaction| transaction.len() >= 2);
+        transactions.retain(|transaction| transaction.len() >= 2);
         let candidates = item_counts.keys().combinations(2);
-        let two_itemset_counts: HashMap<Itemset, u32> = candidates
-            .par_bridge()
-            .into_par_iter()
-            .filter_map(|candidate| {
-                let candidate_count = transactions_new
-                    .par_iter()
-                    .filter(|transaction| candidate.iter().all(|item| transaction.contains(item)))
-                    .count();
-                if candidate_count >= min_support_count {
-                    let mut freq: Itemset = candidate.iter().map(|x| **x).collect();
-                    freq.sort_unstable();
-                    Some((freq, candidate_count as u32))
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let frequent_2_itemset_counts: HashMap<Itemset, u32> =
+            yo(candidates, &transactions, min_support_count);
 
-        // insert
-        let counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
-        all_frequent_itemsets.insert(1, counts);
-        all_frequent_itemsets.insert(2, two_itemset_counts);
+        let frequent_1_itemset_counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
+        all_frequent_itemsets.insert(1, frequent_1_itemset_counts);
+        all_frequent_itemsets.insert(2, frequent_2_itemset_counts);
     }
 
-    // k-itemset, k>1
+    // k-itemset, k >= 3
     for size in 3..=k {
-        transactions_new.retain(|transaction| transaction.len() >= size);
-
-        let prev_frequent_itemsets = &all_frequent_itemsets[&(size - 1_usize)];
-        let candidates: ItemsetCounts = generate_candidates_from_prev(prev_frequent_itemsets);
-
-        let frequent_itemsets = update_counts_with_transactions(
-            &candidates,
-            &transactions_new,
-            min_support_count,
-        );
-        all_frequent_itemsets.insert(size, frequent_itemsets);
+        transactions.retain(|transaction| transaction.len() >= size);
+        let candidates = generate_candidates_from_prev(&all_frequent_itemsets[&(size - 1_usize)]);
+        let frequent_itemset_counts =
+            generate_frequent_itemset_counts_from_candidates(candidates, &transactions, min_support_count);
+            
+        all_frequent_itemsets.insert(size, frequent_itemset_counts);
     }
 
     (all_frequent_itemsets, inventory)
 }
 
-/// includes pruning
-fn update_counts_with_transactions(
-    candidate_counts: &ItemsetCounts,
+fn yo(
+    candidates: Combinations<Keys<usize, u32>>,
     transactions: &[Transaction],
     min_support_count: usize,
-) -> HashMap<Itemset, u32> {
-    // let N = transactions.len() as f32;
-    // let min_support_count = (min_support * N).ceil() as usize;
-
-    let candidates = candidate_counts.keys().par_bridge();
-    let next_item_counts: HashMap<Itemset, u32> = candidates
+) -> ItemsetCounts {
+    candidates
+        .par_bridge()
         .into_par_iter()
+        .filter_map(|candidate| {
+            let candidate_count = transactions
+                .par_iter()
+                .filter(|transaction| candidate.iter().all(|item| transaction.contains(item)))
+                .count();
+            if candidate_count >= min_support_count {
+                let mut freq: Itemset = candidate.iter().map(|x| **x).collect();
+                freq.sort_unstable();
+                Some((freq, candidate_count as u32))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+/// includes pruning
+fn generate_frequent_itemset_counts_from_candidates(
+    candidate_counts: Vec<Itemset>,
+    transactions: &[Transaction],
+    min_support_count: usize,
+) -> ItemsetCounts {
+    candidate_counts
+        .par_iter()
         .filter_map(|candidate| {
             let candidate_count = transactions
                 .par_iter()
@@ -97,24 +96,13 @@ fn update_counts_with_transactions(
                 None
             }
         })
-        .collect();
-
-    next_item_counts
+        .collect()
 }
 
 /// target k
-fn generate_candidates_from_prev(prev_frequent_itemsets: &ItemsetCounts) -> ItemsetCounts {
-    let mut next_itemset_counts: ItemsetCounts =
-        HashMap::with_capacity(prev_frequent_itemsets.len());
-
+fn generate_candidates_from_prev(prev_frequent_itemsets: &ItemsetCounts) -> Vec<Itemset> {
     let mut curr: Vec<Itemset> = prev_frequent_itemsets.keys().cloned().collect();
-    let combinations = join_step(&mut curr);
-
-    for combi in combinations.into_iter() {
-        next_itemset_counts.insert(combi.iter().copied().collect(), 0);
-    }
-
-    next_itemset_counts
+    join_step(&mut curr)
 }
 
 fn convert_to_itemset_counts(item_counts: ItemCounts) -> ItemsetCounts {
@@ -135,7 +123,6 @@ pub fn generate_frequent_item_counts(
     let mut inventory: Inventory = HashMap::with_capacity(approx_num_unique_items);
     let mut last_item_id = 0;
     let mut item_counts = HashMap::with_capacity(approx_num_unique_items);
-
     let mut items = Vec::with_capacity(approx_num_items_in_transaction);
     let min_support_count = (min_support * N).ceil() as u32;
 
@@ -224,11 +211,7 @@ mod tests {
             vec![1] => 0,
         };
 
-        update_counts_with_transactions(
-            &candidate_counts,
-            &transactions,
-            0,
-        );
+        generate_frequent_itemset_counts_from_candidates(&candidate_counts, &transactions, 0);
 
         assert_eq!(candidate_counts, hashmap! { vec![0] => 1, vec![1] => 1 });
     }
@@ -241,11 +224,7 @@ mod tests {
             vec![11] => 0,
         };
 
-        update_counts_with_transactions(
-            &candidate_counts,
-            &transactions,
-            2,
-        );
+        generate_frequent_itemset_counts_from_candidates(&candidate_counts, &transactions, 2);
 
         assert_eq!(candidate_counts, hashmap! {vec![10] => 2})
     }
@@ -267,11 +246,7 @@ mod tests {
             vec![15] => 0,
         };
 
-        update_counts_with_transactions(
-            &candidate_counts,
-            &transactions,
-            3,
-        );
+        generate_frequent_itemset_counts_from_candidates(&candidate_counts, &transactions, 3);
 
         assert_eq!(
             candidate_counts,
@@ -300,11 +275,7 @@ mod tests {
             vec![11, 15] => 0,
         };
 
-        update_counts_with_transactions(
-            &candidate_counts,
-            &transactions,
-            3,
-        );
+        generate_frequent_itemset_counts_from_candidates(&candidate_counts, &transactions, 3);
 
         assert_eq!(candidate_counts, hashmap! { vec![10, 13] => 3});
     }
@@ -317,11 +288,7 @@ mod tests {
             vec![11] => 0,
         };
 
-        update_counts_with_transactions(
-            &candidate_counts,
-            &transactions,
-            2,
-        );
+        generate_frequent_itemset_counts_from_candidates(&candidate_counts, &transactions, 2);
 
         assert_eq!(candidate_counts, hashmap! { vec![10] => 2 });
     }
@@ -334,11 +301,7 @@ mod tests {
             vec![11] => 0,
         };
 
-        update_counts_with_transactions(
-            &candidate_counts,
-            &transactions,
-            0,
-        );
+        generate_frequent_itemset_counts_from_candidates(&candidate_counts, &transactions, 0);
         assert_eq!(
             candidate_counts,
             hashmap! { vec![10] => 1,
@@ -354,11 +317,7 @@ mod tests {
             vec![11] => 0,
         };
 
-        update_counts_with_transactions(
-            &candidate_counts,
-            &transactions,
-            0,
-        );
+        generate_frequent_itemset_counts_from_candidates(&candidate_counts, &transactions, 0);
         assert_eq!(
             candidate_counts,
             hashmap! { vec![10] => 2,
