@@ -2,7 +2,7 @@
 use crate::{
     combi::join_step,
     types::{
-        FrequentItemsets, Inventory, ItemCounts, ItemId, Itemset, ItemsetCounts, RawTransaction,
+        FrequentItemsets, Inventory, ItemCounts, Itemset, ItemsetCounts, RawTransaction,
         ReverseLookup, Transaction,
     },
 };
@@ -18,7 +18,6 @@ pub fn generate_frequent_itemsets(
     k: usize,
 ) -> (FrequentItemsets, Inventory) {
     let mut all_frequent_itemsets: FrequentItemsets = HashMap::with_capacity(k);
-    let mut nonfrequent: Vec<Itemset> = Vec::with_capacity(1024); // arbitrary
     let N = raw_transactions.len() as f32;
     let min_support_count = (min_support * N).ceil() as usize;
 
@@ -59,20 +58,15 @@ pub fn generate_frequent_itemsets(
 
     // k-itemset, k>1
     for size in 3..=k {
-
         transactions_new.retain(|transaction| transaction.len() >= size);
 
         let prev_frequent_itemsets = &all_frequent_itemsets[&(size - 1_usize)];
-        let candidates: ItemsetCounts =
-            generate_candidates_from_prev(prev_frequent_itemsets, size, &nonfrequent);
+        let candidates: ItemsetCounts = generate_candidates_from_prev(prev_frequent_itemsets);
 
         let frequent_itemsets = update_counts_with_transactions(
             &candidates,
             &transactions_new,
-            min_support,
             min_support_count,
-            size,
-            &mut nonfrequent,
         );
         all_frequent_itemsets.insert(size, frequent_itemsets);
     }
@@ -84,10 +78,7 @@ pub fn generate_frequent_itemsets(
 fn update_counts_with_transactions(
     candidate_counts: &ItemsetCounts,
     transactions: &[Transaction],
-    min_support: f32,
     min_support_count: usize,
-    size: usize,
-    nonfrequent: &mut Vec<Itemset>,
 ) -> HashMap<Itemset, u32> {
     // let N = transactions.len() as f32;
     // let min_support_count = (min_support * N).ceil() as usize;
@@ -112,11 +103,7 @@ fn update_counts_with_transactions(
 }
 
 /// target k
-fn generate_candidates_from_prev(
-    prev_frequent_itemsets: &ItemsetCounts,
-    target_size: usize,
-    nonfrequent: &[Itemset],
-) -> ItemsetCounts {
+fn generate_candidates_from_prev(prev_frequent_itemsets: &ItemsetCounts) -> ItemsetCounts {
     let mut next_itemset_counts: ItemsetCounts =
         HashMap::with_capacity(prev_frequent_itemsets.len());
 
@@ -232,18 +219,15 @@ mod tests {
     #[test]
     fn update_counts() {
         let transactions = vec![vec![0, 1]];
-        let mut candidate_counts = hashmap! {
+        let candidate_counts = hashmap! {
             vec![0] => 0,
             vec![1] => 0,
         };
-        let mut nonfrequent = vec![];
 
         update_counts_with_transactions(
-            &mut candidate_counts,
+            &candidate_counts,
             &transactions,
-            0.0,
-            1,
-            &mut nonfrequent,
+            0,
         );
 
         assert_eq!(candidate_counts, hashmap! { vec![0] => 1, vec![1] => 1 });
@@ -252,18 +236,15 @@ mod tests {
     #[test]
     fn update_counts_with_min_support_1() {
         let transactions = vec![vec![10, 11], vec![10, 12]];
-        let mut candidate_counts = hashmap! {
+        let candidate_counts = hashmap! {
             vec![10] => 0,
             vec![11] => 0,
         };
-        let mut nonfrequent = vec![];
 
         update_counts_with_transactions(
-            &mut candidate_counts,
+            &candidate_counts,
             &transactions,
-            1.0,
-            1,
-            &mut nonfrequent,
+            2,
         );
 
         assert_eq!(candidate_counts, hashmap! {vec![10] => 2})
@@ -279,20 +260,17 @@ mod tests {
             vec![10, 12],
             vec![11, 12],
         ];
-        let mut candidate_counts = hashmap! {
+        let candidate_counts = hashmap! {
             vec![10] => 0,
             vec![11] => 0,
             vec![12] => 0,
             vec![15] => 0,
         };
-        let mut nonfrequent = vec![];
 
         update_counts_with_transactions(
-            &mut candidate_counts,
+            &candidate_counts,
             &transactions,
-            0.5,
-            1,
-            &mut nonfrequent,
+            3,
         );
 
         assert_eq!(
@@ -314,21 +292,18 @@ mod tests {
             vec![10, 13],
             vec![11, 13],
         ];
-        let mut candidate_counts = hashmap! {
+        let candidate_counts = hashmap! {
             vec![10, 11] => 0,
             vec![10, 13] => 0,
             vec![10, 15] => 0,
             vec![11, 13] => 0,
             vec![11, 15] => 0,
         };
-        let mut nonfrequent = vec![];
 
         update_counts_with_transactions(
-            &mut candidate_counts,
+            &candidate_counts,
             &transactions,
-            0.5,
-            2,
-            &mut nonfrequent,
+            3,
         );
 
         assert_eq!(candidate_counts, hashmap! { vec![10, 13] => 3});
@@ -337,18 +312,15 @@ mod tests {
     #[test]
     fn update_counts_with_min_support() {
         let transactions = vec![vec![10, 11], vec![10, 13]];
-        let mut candidate_counts = hashmap! {
+        let candidate_counts = hashmap! {
             vec![10] => 0,
             vec![11] => 0,
         };
-        let mut nonfrequent = vec![];
 
         update_counts_with_transactions(
-            &mut candidate_counts,
+            &candidate_counts,
             &transactions,
-            1.0,
-            1,
-            &mut nonfrequent,
+            2,
         );
 
         assert_eq!(candidate_counts, hashmap! { vec![10] => 2 });
@@ -357,18 +329,15 @@ mod tests {
     #[test]
     fn update_counts_2() {
         let transactions = vec![vec![10, 11, 13]];
-        let mut candidate_counts = hashmap! {
+        let candidate_counts = hashmap! {
             vec![10] => 0,
             vec![11] => 0,
         };
-        let mut nonfrequent = vec![];
 
         update_counts_with_transactions(
-            &mut candidate_counts,
+            &candidate_counts,
             &transactions,
-            0.0,
-            1,
-            &mut nonfrequent,
+            0,
         );
         assert_eq!(
             candidate_counts,
@@ -380,18 +349,15 @@ mod tests {
     #[test]
     fn update_counts_3() {
         let transactions = vec![vec![10, 11, 13], vec![10]];
-        let mut candidate_counts = hashmap! {
+        let candidate_counts = hashmap! {
             vec![10] => 0,
             vec![11] => 0,
         };
-        let mut nonfrequent = vec![];
 
         update_counts_with_transactions(
-            &mut candidate_counts,
+            &candidate_counts,
             &transactions,
-            0.0,
-            1,
-            &mut nonfrequent,
+            0,
         );
         assert_eq!(
             candidate_counts,
@@ -473,7 +439,7 @@ mod tests {
             vec![13] => 0,
             vec![14] => 0,
         };
-        let candidate_counts = generate_candidates_from_prev(&itemset_counts, 2, &[]);
+        let candidate_counts = generate_candidates_from_prev(&itemset_counts);
 
         let expected = hashmap! {
             vec![10, 13] => 0,
