@@ -193,9 +193,6 @@ pub fn generate_frequent_item_counts_id(
     // Prune
     item_counts.retain(|_, &mut support_count| support_count >= min_support_count);
 
-    println!("{:?}", item_counts);
-    println!("{:?}", transactions_new);
-
     (item_counts, transactions_new)
 }
 /// 1-itemset
