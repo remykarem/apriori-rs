@@ -2,8 +2,8 @@
 use crate::{
     combi::join_step,
     types::{
-        FrequentItemsets, Inventory, ItemCounts, Itemset, ItemsetCounts, RawTransaction,
-        ReverseLookup, Transaction,
+        FrequentItemsets, Inventory, ItemCounts, ItemId, Itemset, ItemsetCounts, ItemsetLength,
+        RawTransaction, ReverseLookup, Transaction,
     },
 };
 use itertools::{Combinations, Itertools};
@@ -18,7 +18,7 @@ const APPROX_NUM_ITEMS_IN_1_TRANSACTION: usize = 16; // arbitrary
 pub fn generate_frequent_itemsets(
     raw_transactions: Vec<RawTransaction>,
     min_support: f32,
-    k: usize,
+    k: ItemsetLength,
 ) -> (FrequentItemsets, Inventory) {
     let mut all_frequent_itemsets: FrequentItemsets = HashMap::with_capacity(k);
     let N = raw_transactions.len() as f32;
@@ -142,7 +142,7 @@ pub fn generate_frequent_item_counts(
             items.clear();
 
             for &item in raw_transaction {
-                let item_id: usize;
+                let item_id: ItemId;
 
                 if reverse_lookup.contains_key(item) {
                     item_id = *reverse_lookup.get(&item).unwrap();

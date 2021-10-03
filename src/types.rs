@@ -16,5 +16,6 @@ pub type Transaction = Vec<ItemId>;
 pub type ItemCounts = HashMap<ItemId, u32>;
 pub type ItemsetCounts = HashMap<Itemset, u32>;
 
-pub type FrequentItemsets = HashMap<usize, ItemsetCounts>;
+pub type ItemsetLength = usize;
+pub type FrequentItemsets = HashMap<ItemsetLength, ItemsetCounts>;
 pub type PyFrequentItemsets = Py<PyDict>;
