@@ -11,6 +11,9 @@ use pyo3::prelude::pyfunction;
 use rayon::prelude::*;
 use std::collections::{hash_map::Keys, HashMap, HashSet};
 
+const APPROX_NUM_UNIQUE_ITEMS: usize = 1024; // arbitrary
+const APPROX_NUM_ITEMS_IN_1_TRANSACTION: usize = 16; // arbitrary
+
 /// Generate frequent itemsets from a list of transactions.
 pub fn generate_frequent_itemsets(
     raw_transactions: Vec<RawTransaction>,
@@ -124,13 +127,12 @@ pub fn generate_frequent_item_counts(
     min_support: f32,
 ) -> (ItemCounts, Inventory, Vec<Transaction>) {
     let N = raw_transactions.len() as f32;
-    let approx_num_unique_items = 1024; // arbitrary
-    let approx_num_items_in_transaction = 16;
-    let mut reverse_lookup: ReverseLookup = HashMap::with_capacity(approx_num_unique_items);
-    let mut inventory: Inventory = HashMap::with_capacity(approx_num_unique_items);
+
+    let mut reverse_lookup: ReverseLookup = HashMap::with_capacity(APPROX_NUM_UNIQUE_ITEMS);
+    let mut inventory: Inventory = HashMap::with_capacity(APPROX_NUM_UNIQUE_ITEMS);
     let mut last_item_id = 0;
-    let mut item_counts = HashMap::with_capacity(approx_num_unique_items);
-    let mut items = Vec::with_capacity(approx_num_items_in_transaction);
+    let mut item_counts = HashMap::with_capacity(APPROX_NUM_UNIQUE_ITEMS);
+    let mut items = Vec::with_capacity(APPROX_NUM_ITEMS_IN_1_TRANSACTION);
     let min_support_count = (min_support * N).ceil() as u32;
 
     // Update counts
