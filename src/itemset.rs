@@ -1,11 +1,5 @@
 #![allow(non_snake_case)]
-use crate::{
-    combi::join_step,
-    types::{
-        FrequentItemsets, Inventory, ItemCounts, ItemId, Itemset, ItemsetCounts, ItemsetLength,
-        RawTransaction, ReverseLookup, Transaction,
-    },
-};
+use crate::{combi::join_step, types::{FrequentItemsets, Inventory, ItemCounts, ItemId, Itemset, ItemsetCounts, ItemsetLength, RawTransaction, RawTransactionId, ReverseLookup, Transaction}};
 use itertools::{Combinations, Itertools};
 use pyo3::prelude::pyfunction;
 use rayon::prelude::*;
@@ -13,6 +7,55 @@ use std::collections::{hash_map::Keys, HashMap, HashSet};
 
 const APPROX_NUM_UNIQUE_ITEMS: usize = 1024; // arbitrary
 const APPROX_NUM_ITEMS_IN_1_TRANSACTION: usize = 16; // arbitrary
+
+/// Generate frequent itemsets from a list of transactions.
+pub fn generate_frequent_itemsets_id(
+    raw_transactions: Vec<RawTransactionId>,
+    min_support: f32,
+    k: ItemsetLength,
+) -> FrequentItemsets {
+    let mut all_frequent_itemsets: FrequentItemsets = HashMap::with_capacity(k);
+    let N = raw_transactions.len() as f32;
+    let min_support_count = (min_support * N).ceil() as usize;
+
+    // 1-itemset
+    let (item_counts, mut transactions) =
+        generate_frequent_item_counts_id(raw_transactions, min_support);
+
+    // 2-itemset
+    if k == 1 {
+        let frequent_1_itemset_counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
+        all_frequent_itemsets.insert(1, frequent_1_itemset_counts);
+    } else {
+        transactions.retain(|transaction| transaction.len() >= 2);
+        let candidates = item_counts.keys().combinations(2);
+        let frequent_2_itemset_counts: ItemsetCounts =
+            generate_frequent_2_itemset_counts_from_candidates(
+                candidates,
+                &transactions,
+                min_support_count,
+            );
+        let frequent_1_itemset_counts: ItemsetCounts = convert_to_itemset_counts(item_counts);
+
+        all_frequent_itemsets.insert(1, frequent_1_itemset_counts);
+        all_frequent_itemsets.insert(2, frequent_2_itemset_counts);
+    }
+
+    // k-itemset, k >= 3
+    for size in 3..=k {
+        transactions.retain(|transaction| transaction.len() >= size);
+        let candidates = generate_candidates_from_prev(&all_frequent_itemsets[&(size - 1_usize)]);
+        let frequent_itemset_counts = generate_frequent_itemset_counts_from_candidates(
+            candidates,
+            &transactions,
+            min_support_count,
+        );
+
+        all_frequent_itemsets.insert(size, frequent_itemset_counts);
+    }
+
+    all_frequent_itemsets
+}
 
 /// Generate frequent itemsets from a list of transactions.
 pub fn generate_frequent_itemsets(
@@ -119,6 +162,42 @@ fn convert_to_itemset_counts(item_counts: ItemCounts) -> ItemsetCounts {
     item_counts.into_iter().map(|(k, v)| (vec![k], v)).collect()
 }
 
+/// 1-itemset
+/// space: O(2n)
+#[pyfunction]
+pub fn generate_frequent_item_counts_id(
+    raw_transactions: Vec<HashSet<ItemId>>,
+    min_support: f32,
+) -> (ItemCounts, Vec<Transaction>) {
+    let N = raw_transactions.len() as f32;
+
+    let mut item_counts = HashMap::with_capacity(APPROX_NUM_UNIQUE_ITEMS);
+    let min_support_count = (min_support * N).ceil() as u32;
+
+    // Update counts
+    let transactions_new: Vec<Transaction> = raw_transactions
+        .iter()
+        .map(|raw_transaction| {
+
+            for &item in raw_transaction {
+                let count = item_counts.entry(item).or_insert(0);
+                *count += 1;
+            }
+
+            let mut items: Transaction = raw_transaction.iter().copied().collect();
+            items.sort_unstable();
+            items
+        })
+        .collect();
+
+    // Prune
+    item_counts.retain(|_, &mut support_count| support_count >= min_support_count);
+
+    println!("{:?}", item_counts);
+    println!("{:?}", transactions_new);
+
+    (item_counts, transactions_new)
+}
 /// 1-itemset
 /// space: O(2n)
 #[pyfunction]

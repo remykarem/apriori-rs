@@ -11,6 +11,7 @@ pub type ReverseLookup<'l> = HashMap<ItemName<'l>, ItemId>;
 pub type Inventory<'l> = HashMap<ItemId, ItemName<'l>>;
 
 pub type RawTransaction<'l> = HashSet<ItemName<'l>>;
+pub type RawTransactionId = HashSet<ItemId>;
 pub type Transaction = Vec<ItemId>;
 
 pub type ItemCounts = HashMap<ItemId, u32>;

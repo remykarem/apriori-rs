@@ -8,16 +8,18 @@ mod wrapper;
 
 use pcy::__pyo3_get_function_pcy;
 use itemset::__pyo3_get_function_generate_frequent_item_counts;
+use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, PyObjectProtocol};
 use std::collections::{HashMap, HashSet};
-use types::{Inventory, PyFrequentItemsets, PyItemName, RawTransaction};
+use types::{Inventory, Itemset, PyFrequentItemsets, PyItemName, RawTransaction, RawTransactionId};
 
 fn main() {
     #[pymodule]
     fn apriori(_: Python, m: &PyModule) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(apriori, m)?)?;
         m.add_function(wrap_pyfunction!(generate_frequent_itemsets, m)?)?;
+        m.add_function(wrap_pyfunction!(generate_frequent_itemsets_id, m)?)?;
         m.add_function(wrap_pyfunction!(generate_frequent_item_counts, m)?)?;
         m.add_function(wrap_pyfunction!(pcy, m)?)?;
         m.add_class::<Rule>()?;
@@ -74,6 +76,19 @@ fn generate_frequent_itemsets(
         itemset::generate_frequent_itemsets(raw_transactions, min_support, max_length);
 
     (wrapper::convert_itemset_counts(itemset_counts), inventory)
+}
+
+#[pyfunction]
+#[pyo3(text_signature = "(/, *, transactions, min_support, max_len)")]
+fn generate_frequent_itemsets_id(
+    raw_transactions: Vec<RawTransactionId>,
+    min_support: f32,
+    max_length: usize,
+) -> Py<PyDict> {
+    let itemset_counts =
+        itemset::generate_frequent_itemsets_id(raw_transactions, min_support, max_length);
+
+    wrapper::convert_itemset_counts(itemset_counts)
 }
 
 #[pyclass]

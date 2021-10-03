@@ -12,6 +12,24 @@ macro_rules! pyfrozenset {
     }};
 }
 
+pub fn convert_itemset_counts_id(itemset_counts: FrequentItemsets) -> Py<PyDict> {
+    Python::with_gil(|py| {
+        itemset_counts
+            .into_iter()
+            .map(|(size, itemset_counts)| {
+                let py_itemset_counts: Py<PyDict> = itemset_counts
+                    .into_iter()
+                    .map(|(itemset, count)| (pyfrozenset![py, itemset], count))
+                    .collect::<Vec<(Py<PyFrozenSet>, u32)>>()
+                    .into_py_dict(py)
+                    .into();
+                (size, py_itemset_counts)
+            })
+            .into_py_dict(py)
+            .into()
+    })
+}
+
 pub fn convert_itemset_counts(itemset_counts: FrequentItemsets) -> Py<PyDict> {
     Python::with_gil(|py| {
         itemset_counts
