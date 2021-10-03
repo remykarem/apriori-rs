@@ -6,21 +6,19 @@ use crate::types::{ItemId, Itemset};
 // type NonfrequentItemset = Itemset;
 
 /// https://github.com/tommyod/Efficient-Apriori/blob/master/efficient_apriori/itemsets.py
-pub fn join_step(itemsets: &mut [Itemset]) -> Vec<Itemset> {
-
+pub fn join_step(mut itemsets: Vec<Itemset>) -> Vec<Itemset> {
     if itemsets.is_empty() {
         return vec![];
     }
 
     itemsets.sort_unstable();
-    
+
     let mut final_itemsets: Vec<Itemset> = Vec::with_capacity(1024); // arbitrary
-    let mut itemset_first_tuple: Itemset = Vec::with_capacity(itemsets[0].len()+1);
+    let mut itemset_first_tuple: Itemset = Vec::with_capacity(itemsets[0].len() + 1);
     let mut tail_items: Vec<ItemId> = Vec::with_capacity(itemsets.len()); // based on analysis of the first for loop
 
     let mut i = 0;
     while i < itemsets.len() {
-
         let mut skip = 1;
 
         let (itemset_first, itemset_last) = itemsets[i].split_at(itemsets[i].len() - 1);
@@ -167,14 +165,14 @@ mod test {
 
     #[test]
     fn test_join_step() {
-        let mut itemsets: Vec<Itemset> = vec![
+        let itemsets: Vec<Itemset> = vec![
             vec![1, 2, 3],
             vec![1, 2, 4],
             vec![1, 3, 4],
             vec![1, 3, 5],
             vec![2, 3, 4],
         ];
-        let y = join_step(&mut itemsets);
+        let y = join_step(itemsets);
         assert_eq!(y.len(), 2);
         assert!(y.contains(&vec![1, 2, 3, 4]));
         assert!(y.contains(&vec![1, 3, 4, 5]));
@@ -182,18 +180,18 @@ mod test {
 
     #[test]
     fn test_join_step_2() {
-        let mut itemsets: Vec<Itemset> =
+        let itemsets: Vec<Itemset> =
             vec![vec![1, 2, 3], vec![1, 2, 4], vec![1, 3, 4], vec![2, 3, 4]];
-        let y = join_step(&mut itemsets);
+        let y = join_step(itemsets);
         assert!(!y.is_empty());
         assert!(y.contains(&vec![1, 2, 3, 4]));
     }
 
     #[test]
     fn test_join_step_3() {
-        let mut itemsets: Vec<Itemset> =
+        let itemsets: Vec<Itemset> =
             vec![vec![1, 2], vec![2, 3], vec![1, 3], vec![1, 4], vec![3, 4]];
-        let y = join_step(&mut itemsets);
+        let y = join_step(itemsets);
         println!("{:?}", y);
         assert!(y.len() >= 2);
         assert!(y.contains(&vec![1, 2, 3]));

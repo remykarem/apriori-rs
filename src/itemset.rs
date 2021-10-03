@@ -108,8 +108,8 @@ fn generate_frequent_itemset_counts_from_candidates(
 
 /// target k
 fn generate_candidates_from_prev(prev_frequent_itemsets: &ItemsetCounts) -> Vec<Itemset> {
-    let mut curr: Vec<Itemset> = prev_frequent_itemsets.keys().cloned().collect();
-    join_step(&mut curr)
+    let curr: Vec<Itemset> = prev_frequent_itemsets.keys().cloned().collect();
+    join_step(curr)
 }
 
 fn convert_to_itemset_counts(item_counts: ItemCounts) -> ItemsetCounts {
