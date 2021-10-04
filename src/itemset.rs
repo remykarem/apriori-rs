@@ -1,5 +1,11 @@
 #![allow(non_snake_case)]
-use crate::{combi::join_step, types::{FrequentItemsets, Inventory, ItemCounts, ItemId, Itemset, ItemsetCounts, ItemsetLength, RawTransaction, RawTransactionId, ReverseLookup, Transaction}};
+use crate::{
+    combi::generate_candidates_from_prev,
+    types::{
+        FrequentItemsets, Inventory, ItemCounts, ItemId, Itemset, ItemsetCounts, ItemsetLength,
+        RawTransaction, RawTransactionId, ReverseLookup, Transaction,
+    },
+};
 use itertools::{Combinations, Itertools};
 use pyo3::prelude::pyfunction;
 use rayon::prelude::*;
@@ -152,12 +158,6 @@ fn generate_frequent_itemset_counts_from_candidates(
         .collect()
 }
 
-/// target k
-fn generate_candidates_from_prev(prev_frequent_itemsets: &ItemsetCounts) -> Vec<Itemset> {
-    let curr: Vec<Itemset> = prev_frequent_itemsets.keys().cloned().collect();
-    join_step(curr)
-}
-
 fn convert_to_itemset_counts(item_counts: ItemCounts) -> ItemsetCounts {
     item_counts.into_iter().map(|(k, v)| (vec![k], v)).collect()
 }
@@ -178,7 +178,6 @@ pub fn generate_frequent_item_counts_id(
     let transactions_new: Vec<Transaction> = raw_transactions
         .iter()
         .map(|raw_transaction| {
-
             for &item in raw_transaction {
                 let count = item_counts.entry(item).or_insert(0);
                 *count += 1;

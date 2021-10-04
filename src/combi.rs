@@ -1,7 +1,16 @@
 use itertools::Itertools;
 
-use crate::types::{ItemId, Itemset};
+use crate::types::{ItemId, Itemset, ItemsetCounts};
 
+/// target k
+pub fn generate_candidates_from_prev(prev_frequent_itemsets: &ItemsetCounts) -> Vec<Itemset> {
+    let curr: Vec<Itemset> = prev_frequent_itemsets.keys().cloned().collect();
+    join_step(curr)
+}
+
+/// Join k length itemsets into k + 1 length itemsets.
+/// 
+/// Algorithm translated from
 /// https://github.com/tommyod/Efficient-Apriori/blob/master/efficient_apriori/itemsets.py
 pub fn join_step(mut itemsets: Vec<Itemset>) -> Vec<Itemset> {
     if itemsets.is_empty() {

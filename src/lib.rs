@@ -1,18 +1,17 @@
 #![allow(dead_code)]
 pub mod combi;
 pub mod itemset;
-mod pcy;
-pub mod rules;
+pub mod rule;
 pub mod types;
 mod wrapper;
+mod rule_search;
 
-use pcy::__pyo3_get_function_pcy;
 use itemset::__pyo3_get_function_generate_frequent_item_counts;
 use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, PyObjectProtocol};
 use std::collections::{HashMap, HashSet};
-use types::{Inventory, Itemset, PyFrequentItemsets, PyItemName, RawTransaction, RawTransactionId};
+use types::{Inventory, PyFrequentItemsets, PyItemName, RawTransaction, RawTransactionId};
 
 fn main() {
     #[pymodule]
@@ -21,7 +20,6 @@ fn main() {
         m.add_function(wrap_pyfunction!(generate_frequent_itemsets, m)?)?;
         m.add_function(wrap_pyfunction!(generate_frequent_itemsets_id, m)?)?;
         m.add_function(wrap_pyfunction!(generate_frequent_item_counts, m)?)?;
-        m.add_function(wrap_pyfunction!(pcy, m)?)?;
         m.add_class::<Rule>()?;
         Ok(())
     }
@@ -30,15 +28,15 @@ fn main() {
 /// Apriori algorithm for association rules.
 ///
 /// Args:
-///     transactions: A list of list of items.
-///     min_support: The minimum support.
-///     min_confidence: The minimum confidence.
-///     max_len: Maximum no. of items in an association rule.
+///     transactions (List[Set[str]]): A list of list of items.
+///     min_support (float): The minimum support.
+///     min_confidence (float): The minimum confidence.
+///     max_len (int): Maximum no. of items in an association rule.
 ///
 /// Returns:
 ///     A tuple of (i) a list of association rules and (ii) frequent itemsets by size.
 #[pyfunction]
-#[pyo3(text_signature = "(/, *, transactions, min_support, min_confidence, max_len)")]
+#[pyo3(text_signature = "(transactions, min_support, min_confidence, max_len, /)")]
 fn apriori(
     raw_transactions: Vec<RawTransaction>,
     min_support: f32,
@@ -48,7 +46,7 @@ fn apriori(
     let (itemset_counts, inventory) =
         itemset::generate_frequent_itemsets(raw_transactions, min_support, max_len);
 
-    let rules = rules::generate_rules(&min_confidence, &itemset_counts);
+    let rules = rule_search::generate_rules(&min_confidence, &itemset_counts);
 
     (
         wrapper::convert_rules(rules, inventory),
@@ -59,14 +57,14 @@ fn apriori(
 /// Generate frequent itemsets from a list of transactions.
 ///
 /// Args:
-///     transactions: A list of list of items.
-///     min_support: The minimum support.
-///     max_len: Maximum no. of items in an association rule.
+///     transactions (List[Set[str]]): A list of list of items.
+///     min_support (float): The minimum support.
+///     max_len (int): Maximum no. of items in an association rule.
 ///
 /// Returns:
 ///     A tuple of (i) frequent itemsets by size and (ii) a dictionary mapping of item ID to item name.
 #[pyfunction]
-#[pyo3(text_signature = "(/, *, transactions, min_support, max_len)")]
+#[pyo3(text_signature = "(transactions, min_support, max_len, /)")]
 fn generate_frequent_itemsets(
     raw_transactions: Vec<RawTransaction>,
     min_support: f32,
@@ -78,8 +76,17 @@ fn generate_frequent_itemsets(
     (wrapper::convert_itemset_counts(itemset_counts), inventory)
 }
 
+/// Generate frequent itemsets from a list of transactions.
+///
+/// Args:
+///     transactions (List[Set[int]]): A list of list of items.
+///     min_support (float): The minimum support.
+///     max_len (int): Maximum no. of items in an association rule.
+///
+/// Returns:
+///     Frequent itemsets by size.
 #[pyfunction]
-#[pyo3(text_signature = "(/, *, transactions, min_support, max_len)")]
+#[pyo3(text_signature = "(transactions, min_support, max_len, /)")]
 fn generate_frequent_itemsets_id(
     raw_transactions: Vec<RawTransactionId>,
     min_support: f32,
