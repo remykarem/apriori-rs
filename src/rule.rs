@@ -6,6 +6,7 @@ pub struct Rule {
     pub split: usize,
     pub combi: Vec<ItemId>,
     pub confidence: f32,
+    pub lift: f32,
 }
 
 impl Rule {
@@ -14,6 +15,7 @@ impl Rule {
             split: pattern.len(),
             combi: pattern.iter().copied().collect(),
             confidence: 0.0,
+            lift: 0.0,
         };
         mother.create_children(&[], None).unwrap()
     }
@@ -44,6 +46,7 @@ impl Rule {
                 split: new_split,
                 combi,
                 confidence: 0.0,
+                lift: 0.0,
             };
 
             if rule.is_going_to_be_created(to_create) {
@@ -90,11 +93,14 @@ impl Rule {
         let conseq = self.get_consequent();
         parent.get_consequent().iter().all(|x| conseq.contains(x))
     }
-    pub fn compute_confidence(&mut self, counter: &FrequentItemsets, combi: &[ItemId]) {
-        let antecedent_support =
+    pub fn compute_confidence(&mut self, counter: &FrequentItemsets, combi: &[ItemId], N: f32) {
+        let antecedent_support_count =
             counter[&self.get_antecedent().len()][self.get_antecedent()] as f32;
-        let union_support = counter[&self.combi.len()][combi] as f32;
-        self.confidence = union_support / antecedent_support;
+        let consequent_support_count =
+            counter[&self.get_consequent().len()][self.get_consequent()] as f32;
+        let union_support_count = counter[&self.combi.len()][combi] as f32;
+        self.confidence = union_support_count / antecedent_support_count;
+        self.lift = union_support_count / (antecedent_support_count * consequent_support_count) * N
     }
 }
 
@@ -128,11 +134,13 @@ mod test {
             split: 2,
             combi: vec![1, 2, 3, 5],
             confidence: 0.0,
+            lift: 0.0,
         };
         let rule2 = Rule {
             split: 2,
             combi: vec![1, 2, 3, 5],
             confidence: 0.0,
+            lift: 0.0,
         };
         assert!(rule1 == rule2);
     }
@@ -142,11 +150,13 @@ mod test {
             split: 2,
             combi: vec![1, 2, 3, 5],
             confidence: 0.0,
+            lift: 0.0,
         };
         let rule2 = Rule {
             split: 2,
             combi: vec![9, 10, 3, 5],
             confidence: 0.0,
+            lift: 0.0,
         };
         assert!(rule1 == rule2);
     }
@@ -156,11 +166,13 @@ mod test {
             split: 2,
             combi: vec![1, 2, 3, 5],
             confidence: 0.0,
+            lift: 0.0,
         };
         let rule2 = Rule {
             split: 2,
             combi: vec![9, 10, 5],
             confidence: 0.0,
+            lift: 0.0,
         };
         assert!(rule1 != rule2);
     }
@@ -170,11 +182,13 @@ mod test {
             split: 3,
             combi: vec![1, 3, 4, 2],
             confidence: 0.0,
+            lift: 0.0,
         }]);
         let rule = Rule {
             split: 2,
             combi: vec![3, 5, 1, 2],
             confidence: 0.0,
+            lift: 0.0,
         };
         assert!(!rules.contains(&rule));
     }
@@ -185,6 +199,7 @@ mod test {
             split: 4,
             combi: vec![1, 2, 3, 4, 5],
             confidence: 0.0,
+            lift: 0.0,
         };
         let mut children = rule.create_children(&[], None).unwrap();
         let child = children.pop().unwrap();
@@ -210,6 +225,7 @@ mod test {
                 5, // conseq
             ],
             confidence: 0.0,
+            lift: 0.0,
         };
         let child = Rule {
             split: 3,
@@ -218,6 +234,7 @@ mod test {
                 4, 5, //conseq
             ],
             confidence: 0.0,
+            lift: 0.0,
         };
         assert!(child.is_child_of(&parent));
     }

@@ -43,10 +43,11 @@ fn apriori(
     min_confidence: f32,
     max_length: usize,
 ) -> (Vec<Rule>, PyFrequentItemsets) {
+    let N = raw_transactions.len();
     let (itemset_counts, inventory) =
-        itemset::generate_frequent_itemsets(raw_transactions, min_support, max_len);
+        itemset::generate_frequent_itemsets(raw_transactions, min_support, max_length);
 
-    let rules = rule_search::generate_rules(&min_confidence, &itemset_counts);
+    let rules = rule_search::generate_rules(&min_confidence, &itemset_counts, N);
 
     (
         wrapper::convert_rules(rules, inventory),
@@ -106,6 +107,8 @@ pub struct Rule {
     consequent: HashSet<PyItemName>,
     #[pyo3(get)]
     confidence: f32,
+    #[pyo3(get)]
+    lift: f32,
 }
 
 #[pyproto]

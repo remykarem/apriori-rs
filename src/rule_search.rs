@@ -6,7 +6,8 @@ use crate::{
 };
 
 /// Generate rules based on frequent itemsets
-pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
+pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets, N: usize) -> Vec<Rule> {
+    let N = N as f32;
     counter
         .iter()
         .filter_map(|(&itemset_size, itemset_counts)| {
@@ -21,7 +22,7 @@ pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
                 .iter()
                 .flat_map(|(combi, _)| {
                     let combi: Itemset = combi.iter().copied().collect();
-                    bfs(&combi, min_conf, counter)
+                    bfs(&combi, min_conf, counter, N)
                 })
                 .collect::<Vec<Rule>>()
         })
@@ -29,7 +30,7 @@ pub fn generate_rules(min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
 }
 
 /// Given a combination, find a list of rules that can be generated from it
-pub fn bfs(combi: &[ItemId], &min_conf: &f32, counter: &FrequentItemsets) -> Vec<Rule> {
+pub fn bfs(combi: &[ItemId], &min_conf: &f32, counter: &FrequentItemsets, N: f32) -> Vec<Rule> {
     let mut queue: VecDeque<Rule> = VecDeque::new();
     let mut blacklist = vec![];
     let mut final_rules = vec![];
@@ -42,7 +43,7 @@ pub fn bfs(combi: &[ItemId], &min_conf: &f32, counter: &FrequentItemsets) -> Vec
             continue;
         }
 
-        rule.compute_confidence(counter, combi);
+        rule.compute_confidence(counter, combi, N);
 
         if rule.confidence >= min_conf {
             if let Some(new_rules) = rule.create_children(&blacklist, Some(&queue)) {
@@ -93,7 +94,7 @@ mod tests {
         };
         let min_conf = 0.8;
 
-        let assoc_rules = generate_rules(&min_conf, &counter);
+        let assoc_rules = generate_rules(&min_conf, &counter, 1);
 
         for r in &assoc_rules {
             println!("{}", r);
@@ -129,7 +130,7 @@ mod tests {
         };
         let min_conf = 0.8;
 
-        let assoc_rules = generate_rules(&min_conf, &counter);
+        let assoc_rules = generate_rules(&min_conf, &counter, 1);
 
         for r in &assoc_rules {
             println!("{}", r);
