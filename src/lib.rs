@@ -31,17 +31,17 @@ fn main() {
 ///     transactions (List[Set[str]]): A list of list of items.
 ///     min_support (float): The minimum support.
 ///     min_confidence (float): The minimum confidence.
-///     max_len (int): Maximum no. of items in an association rule.
+///     max_length (int): Maximum no. of items in an association rule.
 ///
 /// Returns:
 ///     A tuple of (i) a list of association rules and (ii) frequent itemsets by size.
 #[pyfunction]
-#[pyo3(text_signature = "(transactions, min_support, min_confidence, max_len, /)")]
+#[pyo3(text_signature = "(transactions, min_support, min_confidence, max_length, /)")]
 fn apriori(
     raw_transactions: Vec<RawTransaction>,
     min_support: f32,
     min_confidence: f32,
-    max_len: usize,
+    max_length: usize,
 ) -> (Vec<Rule>, PyFrequentItemsets) {
     let (itemset_counts, inventory) =
         itemset::generate_frequent_itemsets(raw_transactions, min_support, max_len);
@@ -59,12 +59,12 @@ fn apriori(
 /// Args:
 ///     transactions (List[Set[str]]): A list of list of items.
 ///     min_support (float): The minimum support.
-///     max_len (int): Maximum no. of items in an association rule.
+///     max_length (int): Maximum no. of items in an association rule.
 ///
 /// Returns:
 ///     A tuple of (i) frequent itemsets by size and (ii) a dictionary mapping of item ID to item name.
 #[pyfunction]
-#[pyo3(text_signature = "(transactions, min_support, max_len, /)")]
+#[pyo3(text_signature = "(transactions, min_support, max_length, /)")]
 fn generate_frequent_itemsets(
     raw_transactions: Vec<RawTransaction>,
     min_support: f32,
@@ -81,12 +81,12 @@ fn generate_frequent_itemsets(
 /// Args:
 ///     transactions (List[Set[int]]): A list of list of items.
 ///     min_support (float): The minimum support.
-///     max_len (int): Maximum no. of items in an association rule.
+///     max_length (int): Maximum no. of items in an association rule.
 ///
 /// Returns:
 ///     Frequent itemsets by size.
 #[pyfunction]
-#[pyo3(text_signature = "(transactions, min_support, max_len, /)")]
+#[pyo3(text_signature = "(transactions, min_support, max_length, /)")]
 fn generate_frequent_itemsets_id(
     raw_transactions: Vec<RawTransactionId>,
     min_support: f32,
