@@ -27,7 +27,7 @@ pub fn generate_frequent_itemsets_id(
 
     // 1-itemset
     let (item_counts, mut transactions) =
-        generate_frequent_item_counts_id(raw_transactions, min_support);
+        generate_frequent_1_itemset_counts_id(raw_transactions, min_support);
 
     // 2-itemset
     if k == 1 {
@@ -37,7 +37,7 @@ pub fn generate_frequent_itemsets_id(
         transactions.retain(|transaction| transaction.len() >= 2);
         let candidates = item_counts.keys().combinations(2);
         let frequent_2_itemset_counts: ItemsetCounts =
-            generate_frequent_2_itemset_counts_from_candidates(
+            generate_frequent_2_itemset_counts(
                 candidates,
                 &transactions,
                 min_support_count,
@@ -52,7 +52,7 @@ pub fn generate_frequent_itemsets_id(
     for size in 3..=k {
         transactions.retain(|transaction| transaction.len() >= size);
         let candidates = generate_candidates_from_prev(&all_frequent_itemsets[&(size - 1_usize)]);
-        let frequent_itemset_counts = generate_frequent_itemset_counts_from_candidates(
+        let frequent_itemset_counts = generate_frequent_k_itemset_counts(
             candidates,
             &transactions,
             min_support_count,
@@ -76,7 +76,7 @@ pub fn generate_frequent_itemsets(
 
     // 1-itemset
     let (item_counts, inventory, mut transactions) =
-        generate_frequent_item_counts(raw_transactions, min_support);
+        generate_frequent_1_itemset_counts(raw_transactions, min_support);
 
     // 2-itemset
     if k == 1 {
@@ -86,7 +86,7 @@ pub fn generate_frequent_itemsets(
         transactions.retain(|transaction| transaction.len() >= 2);
         let candidates = item_counts.keys().combinations(2);
         let frequent_2_itemset_counts: ItemsetCounts =
-            generate_frequent_2_itemset_counts_from_candidates(
+            generate_frequent_2_itemset_counts(
                 candidates,
                 &transactions,
                 min_support_count,
@@ -101,7 +101,7 @@ pub fn generate_frequent_itemsets(
     for size in 3..=k {
         transactions.retain(|transaction| transaction.len() >= size);
         let candidates = generate_candidates_from_prev(&all_frequent_itemsets[&(size - 1_usize)]);
-        let frequent_itemset_counts = generate_frequent_itemset_counts_from_candidates(
+        let frequent_itemset_counts = generate_frequent_k_itemset_counts(
             candidates,
             &transactions,
             min_support_count,
@@ -113,7 +113,7 @@ pub fn generate_frequent_itemsets(
     (all_frequent_itemsets, inventory)
 }
 
-fn generate_frequent_2_itemset_counts_from_candidates(
+fn generate_frequent_2_itemset_counts(
     candidates: Combinations<Keys<usize, u32>>,
     transactions: &[Transaction],
     min_support_count: usize,
@@ -138,7 +138,7 @@ fn generate_frequent_2_itemset_counts_from_candidates(
 }
 
 /// includes pruning
-fn generate_frequent_itemset_counts_from_candidates(
+fn generate_frequent_k_itemset_counts(
     candidate_counts: Vec<Itemset>,
     transactions: &[Transaction],
     min_support_count: usize,
@@ -166,7 +166,7 @@ fn convert_to_itemset_counts(item_counts: ItemCounts) -> ItemsetCounts {
 /// 1-itemset
 /// space: O(2n)
 #[pyfunction]
-pub fn generate_frequent_item_counts_id(
+pub fn generate_frequent_1_itemset_counts_id(
     raw_transactions: Vec<HashSet<ItemId>>,
     min_support: f32,
 ) -> (ItemCounts, Vec<Transaction>) {
@@ -195,10 +195,11 @@ pub fn generate_frequent_item_counts_id(
 
     (item_counts, transactions_new)
 }
+
 /// 1-itemset
 /// space: O(2n)
 #[pyfunction]
-pub fn generate_frequent_item_counts(
+pub fn generate_frequent_1_itemset_counts(
     raw_transactions: Vec<HashSet<&str>>,
     min_support: f32,
 ) -> (ItemCounts, Inventory, Vec<Transaction>) {
@@ -294,7 +295,7 @@ mod tests {
         let candidate_counts = vec![vec![0], vec![1]];
 
         let frequent_itemsets =
-            generate_frequent_itemset_counts_from_candidates(candidate_counts, &transactions, 0);
+            generate_frequent_k_itemset_counts(candidate_counts, &transactions, 0);
 
         assert_eq!(frequent_itemsets, hashmap! { vec![0] => 1, vec![1] => 1 });
     }
@@ -305,7 +306,7 @@ mod tests {
         let candidate_counts = vec![vec![10], vec![11]];
 
         let frequent_itemsets =
-            generate_frequent_itemset_counts_from_candidates(candidate_counts, &transactions, 2);
+            generate_frequent_k_itemset_counts(candidate_counts, &transactions, 2);
 
         assert_eq!(frequent_itemsets, hashmap! {vec![10] => 2})
     }
@@ -323,7 +324,7 @@ mod tests {
         let candidate_counts = vec![vec![10], vec![11], vec![12], vec![15]];
 
         let frequent_itemsets =
-            generate_frequent_itemset_counts_from_candidates(candidate_counts, &transactions, 3);
+            generate_frequent_k_itemset_counts(candidate_counts, &transactions, 3);
 
         assert_eq!(
             frequent_itemsets,
@@ -352,7 +353,7 @@ mod tests {
             vec![11, 15],
         ];
         let frequent_itemsets =
-            generate_frequent_itemset_counts_from_candidates(candidate_counts, &transactions, 3);
+            generate_frequent_k_itemset_counts(candidate_counts, &transactions, 3);
         assert_eq!(frequent_itemsets, hashmap! { vec![10, 13] => 3});
     }
 
@@ -362,7 +363,7 @@ mod tests {
         let candidate_counts = vec![vec![10], vec![11]];
 
         let frequent_itemsets =
-            generate_frequent_itemset_counts_from_candidates(candidate_counts, &transactions, 2);
+            generate_frequent_k_itemset_counts(candidate_counts, &transactions, 2);
 
         assert_eq!(frequent_itemsets, hashmap! { vec![10] => 2 });
     }
@@ -373,7 +374,7 @@ mod tests {
         let candidate_counts = vec![vec![10], vec![11]];
 
         let frequent_itemsets =
-            generate_frequent_itemset_counts_from_candidates(candidate_counts, &transactions, 0);
+            generate_frequent_k_itemset_counts(candidate_counts, &transactions, 0);
         assert_eq!(
             frequent_itemsets,
             hashmap! { vec![10] => 1,
@@ -387,7 +388,7 @@ mod tests {
         let candidate_counts = vec![vec![10], vec![11]];
 
         let frequent_itemsets =
-            generate_frequent_itemset_counts_from_candidates(candidate_counts, &transactions, 0);
+            generate_frequent_k_itemset_counts(candidate_counts, &transactions, 0);
         assert_eq!(
             frequent_itemsets,
             hashmap! { vec![10] => 2,
@@ -399,7 +400,7 @@ mod tests {
     fn create_counts_one_itemset_with_sorted_transaction_ids() {
         let raw_transactions = vec![raw_transaction![A, B, D], raw_transaction![A]];
         let (itemset_counts, inventory, transaction_ids) =
-            generate_frequent_item_counts(raw_transactions, 0.0);
+            generate_frequent_1_itemset_counts(raw_transactions, 0.0);
         let lookup = get_reverse_lookup(inventory);
 
         assert_eq!(itemset_counts.len(), 3);
@@ -419,7 +420,7 @@ mod tests {
     #[test]
     fn create_counts_one_itemset_with_min_support_1() {
         let raw_transactions = vec![raw_transaction![A, B, D], raw_transaction![A]];
-        let (itemset_counts, inventory, _) = generate_frequent_item_counts(raw_transactions, 1.0);
+        let (itemset_counts, inventory, _) = generate_frequent_1_itemset_counts(raw_transactions, 1.0);
         let lookup = get_reverse_lookup(inventory);
 
         assert_eq!(itemset_counts.len(), 1);
@@ -434,7 +435,7 @@ mod tests {
             raw_transaction![B],
             raw_transaction![A, C],
         ];
-        let (itemset_counts, inventory, _) = generate_frequent_item_counts(raw_transactions, 0.5);
+        let (itemset_counts, inventory, _) = generate_frequent_1_itemset_counts(raw_transactions, 0.5);
         let lookup = get_reverse_lookup(inventory);
 
         assert_eq!(itemset_counts.len(), 3);

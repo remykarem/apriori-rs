@@ -4,7 +4,7 @@ pub mod rules;
 pub mod types;
 mod wrapper;
 
-use itemsets::count::__pyo3_get_function_generate_frequent_item_counts;
+use itemsets::count::__pyo3_get_function_generate_frequent_1_itemset_counts;
 use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, PyObjectProtocol};
@@ -17,7 +17,7 @@ fn main() {
         m.add_function(wrap_pyfunction!(apriori, m)?)?;
         m.add_function(wrap_pyfunction!(generate_frequent_itemsets, m)?)?;
         m.add_function(wrap_pyfunction!(generate_frequent_itemsets_id, m)?)?;
-        m.add_function(wrap_pyfunction!(generate_frequent_item_counts, m)?)?;
+        m.add_function(wrap_pyfunction!(generate_frequent_1_itemset_counts, m)?)?;
         m.add_class::<Rule>()?;
         Ok(())
     }
