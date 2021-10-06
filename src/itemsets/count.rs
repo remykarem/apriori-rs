@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
+
 use crate::{
-    combi::generate_candidates_from_prev,
+    itemsets::search::generate_candidates_from_prev,
     types::{
         FrequentItemsets, Inventory, ItemCounts, ItemId, Itemset, ItemsetCounts, ItemsetLength,
         RawTransaction, RawTransactionId, ReverseLookup, Transaction,

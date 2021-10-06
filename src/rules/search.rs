@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::{
-    rule::Rule,
+    rules::rule::Rule,
     types::{FrequentItemsets, ItemId, Itemset},
 };
 

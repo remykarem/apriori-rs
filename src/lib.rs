@@ -1,12 +1,10 @@
 #![allow(dead_code)]
-pub mod combi;
-pub mod itemset;
-pub mod rule;
+pub mod itemsets;
+pub mod rules;
 pub mod types;
 mod wrapper;
-mod rule_search;
 
-use itemset::__pyo3_get_function_generate_frequent_item_counts;
+use itemsets::count::__pyo3_get_function_generate_frequent_item_counts;
 use pyo3::types::PyDict;
 use pyo3::wrap_pyfunction;
 use pyo3::{prelude::*, PyObjectProtocol};
@@ -45,9 +43,9 @@ fn apriori(
 ) -> (Vec<Rule>, PyFrequentItemsets) {
     let N = raw_transactions.len();
     let (itemset_counts, inventory) =
-        itemset::generate_frequent_itemsets(raw_transactions, min_support, max_length);
+        itemsets::count::generate_frequent_itemsets(raw_transactions, min_support, max_length);
 
-    let rules = rule_search::generate_rules(&min_confidence, &itemset_counts, N);
+    let rules = rules::search::generate_rules(&min_confidence, &itemset_counts, N);
 
     (
         wrapper::convert_rules(rules, inventory),
@@ -72,7 +70,7 @@ fn generate_frequent_itemsets(
     max_length: usize,
 ) -> (PyFrequentItemsets, Inventory) {
     let (itemset_counts, inventory) =
-        itemset::generate_frequent_itemsets(raw_transactions, min_support, max_length);
+        itemsets::count::generate_frequent_itemsets(raw_transactions, min_support, max_length);
 
     (wrapper::convert_itemset_counts(itemset_counts), inventory)
 }
@@ -94,7 +92,7 @@ fn generate_frequent_itemsets_id(
     max_length: usize,
 ) -> Py<PyDict> {
     let itemset_counts =
-        itemset::generate_frequent_itemsets_id(raw_transactions, min_support, max_length);
+        itemsets::count::generate_frequent_itemsets_id(raw_transactions, min_support, max_length);
 
     wrapper::convert_itemset_counts(itemset_counts)
 }
