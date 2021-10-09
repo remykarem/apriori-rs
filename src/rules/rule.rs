@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use crate::types::{FrequentItemsets, ItemId};
 use std::collections::VecDeque;
 
