@@ -3,6 +3,7 @@ from efficient_apriori import itemsets_from_transactions
 from apriori import generate_frequent_itemsets
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori as frequent_itemsets_mlxtend
+from apyori import gen_support_records, TransactionManager
 import pandas as pd
 
 
@@ -28,10 +29,8 @@ def get_data():
 
 
 def get_params():
-    # for min_support in [0.1, 0.05, 0.01, 0.005]:
-    for min_support in [0.01]:
-        for length in [5]:
-        # for length in [1, 2, 3, 4, 5]:
+    for min_support in [0.1, 0.05, 0.01, 0.005]:
+        for length in [1, 2, 3, 4, 5]:
             yield (min_support, length)
 
 
@@ -57,6 +56,12 @@ def run_benchmark():
         tic = time.time()
         frequent_itemsets_mlxtend(
             df_transactions, min_support=min_support, max_len=length)
+        toc = time.time()
+        times.append(toc - tic)
+
+        tic = time.time()
+        transaction_manager = TransactionManager.create(transactions)
+        list(gen_support_records(transaction_manager, min_support, max_length=length))
         toc = time.time()
         times.append(toc - tic)
 

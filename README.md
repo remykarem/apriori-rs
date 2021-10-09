@@ -1,8 +1,6 @@
 # apriori-rs
 
-Fast implementation of apriori algorithm for association rule mining. Written in Rust 🦀 with Python bindings.
-
-This implementation uses multithreading using the [Rayon](https://github.com/rayon-rs/rayon) library.
+Implementation of apriori algorithm for association rule mining. Written in Rust 🦀 with Python bindings.
 
 ## Installation
 
@@ -105,31 +103,27 @@ Obtain confidence and lift for a rule.
 
 Time taken (s) to generate frequent itemsets for the Online Retail II dataset (https://archive.ics.uci.edu/ml/machine-learning-databases/00502/) given minimum support and maximum length of itemset.
 
-| Min support, length | apriori-rs | [efficient-apriori](https://github.com/tommyod/Efficient-Apriori) | [mlxtend](http://rasbt.github.io/mlxtend/user_guide/frequent_patterns/apriori/) |
-|:-------------------:|:----------:|:----------------:|:-------:|
-|            0.100, 1 |       0.2s |             0.1s |    0.1s |
-|            0.100, 2 |       0.2s |             0.1s |    0.1s |
-|            0.100, 3 |       0.2s |             0.1s |    0.1s |
-|            0.100, 4 |       0.2s |             0.1s |    0.1s |
-|            0.100, 5 |       0.2s |             0.1s |    0.1s |
-|            0.050, 1 |       0.2s |             0.1s |    0.1s |
-|            0.050, 2 |       0.2s |             0.2s |    0.1s |
-|            0.050, 3 |       0.2s |             0.2s |    0.1s |
-|            0.050, 4 |       0.2s |             0.2s |    0.1s |
-|            0.050, 5 |       0.2s |             0.2s |    0.2s |
-|            0.010, 1 |       0.2s |             0.1s |    0.1s |
-|            0.010, 2 |    **16s** |             261s |     73s |
-|            0.010, 3 |    **15s** |             272s |     79s |
-|            0.010, 4 |    **17s** |             284s |     78s |
-|            0.010, 5 |    **14s** |             279s |     92s |
-|            0.005, 1 |       0.2s |             0.1s |    0.1s |
-|            0.005, 2 |    **76s** |            1190s |    327s |
-|            0.005, 3 |    **68s** |            1278s |    643s |
-|            0.005, 4 |    **81s** |            1168s |    638s |
-|            0.005, 5 |    **70s** |            1217s |    643s |
+| Min support, length | apriori-rs | [efficient-apriori](https://github.com/tommyod/Efficient-Apriori) | [mlxtend](http://rasbt.github.io/mlxtend/user_guide/frequent_patterns/apriori/) | [apyori](https://github.com/ymoch/apyori) |
+|:-------------------:|:----------:|:----------------:|:-------:|:----:|
+|            0.100, 1 |       0.2s |             0.1s |    0.1s | 0.29s
+|            0.100, 2 |       0.2s |             0.1s |    0.1s | 0.26s
+|            0.100, 3 |       0.2s |             0.1s |    0.1s | 0.25s
+|            0.100, 4 |       0.2s |             0.1s |    0.1s |0.25s
+|            0.100, 5 |       0.2s |             0.1s |    0.1s | 0.25s
+|            0.050, 1 |       0.2s |             0.1s |    0.1s | 0.25s
+|            0.050, 2 |       0.2s |             0.2s |    0.1s |0.25s
+|            0.050, 3 |       0.2s |             0.2s |    0.1s | 0.25s
+|            0.050, 4 |       0.2s |             0.2s |    0.1s | 0.25s
+|            0.050, 5 |       0.2s |             0.2s |    0.2s |0.25s
+|            0.010, 1 |       0.2s |             0.1s |    0.1s | 0.32s
+|            0.010, 2 |        16s |             261s |     73s | **2.1s**
+|            0.010, 3 |        15s |             272s |     79s | **2.3s**
+|            0.010, 4 |        17s |             284s |     78s | **2.4s**
+|            0.010, 5 |        14s |             279s |     92s | **2.4s**
+|            0.005, 1 |       0.2s |             0.1s |    0.1s | 0.25s
+|            0.005, 2 |        76s |            1190s |    327s | **5.7s**
+|            0.005, 3 |        68s |            1278s |    643s | **20s**
+|            0.005, 4 |        81s |            1168s |    638s | **39s**
+|            0.005, 5 |        70s |            1217s |    643s | **41s**
 
 Benchmark was carried out on macOS Big Sur (11.6); 2.7 GHz Quad-Core Intel Core i7. Python version 3.8.11.
-
-## Contributing
-
-See any opportunities for better memory management or improvement in speed? Feel free to submit a PR :)
