@@ -1,6 +1,8 @@
-# Fast apriori
+# apriori-rs
 
-Fast apriori for association rule mining written in Rust with Python bindings.
+Fast implementation of apriori algorithm for association rule mining. Written in Rust 🦀 with Python bindings.
+
+This implementation uses multithreading using the [Rayon](https://github.com/rayon-rs/rayon) library.
 
 ## Installation
 
@@ -24,7 +26,7 @@ cargo rustc --release -- -C link-arg=-undefined -C link-arg=dynamic_lookup && mv
 
 ## Usage
 
-**Generating frequent itemsets**
+### Generating frequent itemsets
 
 Prepare the data as a list of sets of strings.
 
@@ -60,26 +62,14 @@ Then
 
 Use `generate_frequent_itemsets_id` if your items are indices.
 
-**Generating rules**
-
-Prepare the data in a similar manner.
+### Association rules
 
 ```python
->>> from apriori import apriori
-
->>> transactions = [
-...    set(["bread", "milk", "cheese"]),
-...    set(["bread", "milk"]),
-...    set(["milk", "cheese", "bread"]),
-...    set(["milk", "cheese", "bread"]),
-...    set(["milk", "cheese", "yoghurt"]),
-...    set(["milk", "bread"])]
-```
-
-Then
-
-```python
->>> rules, counts = apriori(transactions, min_support=0.3, min_confidence=0.2, max_length=3)
+>>> rules, counts = apriori(
+...     transactions, 
+...     min_support=0.3, 
+...     min_confidence=0.2, 
+...     max_length=3)
 ```
 
 ```python
@@ -112,5 +102,6 @@ Obtain confidence and lift for a rule.
 ```
 
 ## Resources / references
+## Contributing
 
-- https://github.com/tommyod/Efficient-Apriori
+See any opportunities for better memory management or improvement in speed? Feel free to submit a PR :)
